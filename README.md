@@ -19,18 +19,17 @@ O projeto adota uma arquitetura totalmente desacoplada, separando a inteligênci
 ## 📂 Estrutura do Repositório
 
 sigweb_caprinu/
-│
-├── backend/          # Engine em Python (API REST)
-│   ├── venv/         # Ambiente virtual (omitido no .gitignore)
-│   ├── main.py       # Endpoints, validações e conexão com o banco
-│   └── requirements.txt
-│
-├── frontend/         # Interface do Usuário (Painel e Mapa)
-│   ├── index.html    # Estrutura e carregamento de dependências
-│   ├── style.css     # Folha de estilo segregada (Tema Terroso/Clean)
-│   └── app.js        # Lógica do mapa, clusters e requisições assíncronas
-│
-└── README.txt         # Documentação do projeto
++-- backend/
+|   +-- main.py                (Endpoints da API, validações e regras do PostGIS)
+|   +-- requirements.txt       (Dependências e bibliotecas Python para produção)
+|   +-- venv/                  (Ambiente virtual local - omitido no git)
+|
++-- frontend/
+|   +-- app.js                 (Lógica do mapa, clusters e consumo da API)
+|   +-- index.html             (Estrutura da interface do usuário)
+|   +-- style.css              (Estilização isolada do Dashboard)
+|
++-- README.txt                 (Documentação oficial do ecossistema)
 
 ---
 
