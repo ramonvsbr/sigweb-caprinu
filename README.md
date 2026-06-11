@@ -1,5 +1,4 @@
-with open("README.txt", "w", encoding="utf-8") as file:
-    file.write("""# 🌍 SIGWeb Caprinu — Dashboard Geográfico do Semiárido
+🌍 SIGWeb Caprinu — Dashboard Geográfico do Semiárido
 
 Este é um sistema de Informações Geográficas baseado na Web (WebGIS) projetado para monitorar, mapear e analisar dados zootécnicos e socioeconômicos da caprinocultura e ovinocultura no Semiárido Nordestino. 
 
