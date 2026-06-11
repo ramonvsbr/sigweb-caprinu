@@ -1,0 +1,347 @@
+    /* ─── TOKENS ─────────────────────────────────────────────── */
+    :root {
+        --c-earth:   #2D4A3E;   /* verde musgo escuro */
+        --c-sage:    #4A7C6F;   /* verde médio */
+        --c-mint:    #7EC8A0;   /* verde claro */
+        --c-sand:    #E8DFD0;   /* areia */
+        --c-cream:   #F5F1EB;   /* creme */
+        --c-amber:   #C8823A;   /* âmbar/terracota */
+        --c-stone:   #8B8178;   /* pedra */
+        --c-ink:     #1A1A18;   /* quase-preto */
+        --c-white:   #FFFFFF;
+        --c-success: #4A7C6F;
+        --c-danger:  #C85A3A;
+
+        --sidebar-w: 400px;
+        --font-display: 'Instrument Serif', Georgia, serif;
+        --font-body:    'Plus Jakarta Sans', system-ui, sans-serif;
+        --ease-out:  cubic-bezier(0.22, 1, 0.36, 1);
+        --radius-sm: 6px;
+        --radius-md: 12px;
+        --radius-lg: 20px;
+    }
+
+    /* ─── RESET / BASE ───────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; }
+    body {
+        margin: 0; padding: 0;
+        font-family: var(--font-body);
+        display: flex; height: 100vh; overflow: hidden;
+        background: var(--c-ink);
+        color: var(--c-ink);
+        -webkit-font-smoothing: antialiased;
+    }
+
+    /* ─── MAPA ───────────────────────────────────────────────── */
+    #map {
+        flex: 1; height: 100%; z-index: 1;
+        filter: saturate(0.9) brightness(0.97);
+    }
+
+    /* ─── PAINEL LATERAL ─────────────────────────────────────── */
+    #painel-lateral {
+        width: var(--sidebar-w);
+        height: 100%;
+        background: var(--c-cream);
+        border-left: 1px solid rgba(0,0,0,0.06);
+        box-shadow: -12px 0 60px rgba(0,0,0,0.12);
+        display: flex;
+        flex-direction: column;
+        z-index: 1000;
+        overflow: hidden;
+        transition: transform 0.4s var(--ease-out);
+    }
+
+    #painel-lateral.colapsado {
+        transform: translateX(var(--sidebar-w));
+        position: absolute; right: 0;
+    }
+
+    /* ─── TOPO DO PAINEL ─────────────────────────────────────── */
+    .topo-painel {
+        background: var(--c-earth);
+        color: var(--c-white);
+        padding: 28px 28px 24px;
+        flex-shrink: 0;
+        position: relative;
+        overflow: hidden;
+    }
+
+    /* textura sutil */
+    .topo-painel::before {
+        content: '';
+        position: absolute; inset: 0;
+        background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.03'%3E%3Ccircle cx='30' cy='30' r='2'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+        pointer-events: none;
+    }
+
+    .logo-area {
+        display: flex; align-items: center; gap: 14px; margin-bottom: 22px;
+    }
+    .logo-icon {
+        width: 44px; height: 44px; border-radius: 10px;
+        background: rgba(255,255,255,0.12);
+        display: flex; align-items: center; justify-content: center;
+        font-size: 22px;
+        border: 1px solid rgba(255,255,255,0.15);
+    }
+    .logo-title {
+        font-family: var(--font-display);
+        font-size: 18px; font-style: italic;
+        color: var(--c-white); margin: 0; line-height: 1;
+    }
+    .logo-subtitle {
+        font-size: 10px; font-weight: 500; letter-spacing: 1.5px;
+        text-transform: uppercase; color: var(--c-mint); margin-top: 3px;
+    }
+
+    .filtro-label {
+        font-size: 10px; font-weight: 600; letter-spacing: 1.5px;
+        text-transform: uppercase; color: rgba(255,255,255,0.5);
+        margin-bottom: 8px; display: block;
+    }
+
+    .select-wrapper {
+        position: relative;
+    }
+    .select-wrapper::after {
+        content: '▾';
+        position: absolute; right: 14px; top: 50%;
+        transform: translateY(-50%);
+        color: var(--c-mint); pointer-events: none;
+        font-size: 12px;
+    }
+    .select-wrapper select {
+        width: 100%;
+        padding: 11px 36px 11px 14px;
+        border-radius: var(--radius-sm);
+        border: 1px solid rgba(255,255,255,0.12);
+        font-size: 13px; font-family: var(--font-body); font-weight: 500;
+        background: rgba(255,255,255,0.08);
+        color: var(--c-white);
+        cursor: pointer; outline: none;
+        transition: border-color 0.2s;
+        appearance: none;
+        -webkit-appearance: none;
+    }
+    .select-wrapper select:hover  { border-color: rgba(255,255,255,0.3); }
+    .select-wrapper select:focus  { border-color: var(--c-mint); }
+    .select-wrapper select option { color: var(--c-ink); background: #fff; }
+
+    /* ─── BOTÃO TOGGLE ───────────────────────────────────────── */
+    .botao-toggle-painel {
+        position: absolute;
+        top: 20px;
+        right: calc(var(--sidebar-w) + 12px);
+        z-index: 1100;
+        background: var(--c-earth);
+        color: var(--c-mint);
+        border: none;
+        width: 40px; height: 40px;
+        border-radius: var(--radius-sm);
+        font-size: 16px; cursor: pointer;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.25);
+        display: flex; align-items: center; justify-content: center;
+        transition: all 0.2s;
+    }
+    .botao-toggle-painel:hover { background: var(--c-sage); }
+    body:has(#painel-lateral.colapsado) .botao-toggle-painel { right: 12px; }
+
+    /* ─── SCROLL BODY ────────────────────────────────────────── */
+    #scroll-painel {
+        flex: 1;
+        overflow-y: auto;
+        scrollbar-width: thin;
+        scrollbar-color: var(--c-sand) transparent;
+    }
+    #scroll-painel::-webkit-scrollbar { width: 4px; }
+    #scroll-painel::-webkit-scrollbar-track { background: transparent; }
+    #scroll-painel::-webkit-scrollbar-thumb { background: var(--c-sand); border-radius: 4px; }
+
+    /* ─── CONTEÚDO PAINEL ────────────────────────────────────── */
+    .conteudo-painel { padding: 28px; }
+
+    .placeholder-wrap {
+        display: flex; flex-direction: column; align-items: center;
+        justify-content: center; text-align: center;
+        padding: 60px 28px; gap: 16px;
+    }
+    .placeholder-icon { font-size: 40px; opacity: 0.3; }
+    .placeholder-texto {
+        font-size: 13px; line-height: 1.7;
+        color: var(--c-stone);
+    }
+
+    /* ─── CABEÇALHO DA COMUNIDADE ────────────────────────────── */
+    .comunidade-header {
+        margin-bottom: 28px;
+        padding-bottom: 20px;
+        border-bottom: 1px solid rgba(0,0,0,0.06);
+    }
+    .badge-regiao {
+        display: inline-flex; align-items: center; gap: 5px;
+        background: rgba(45,74,62,0.08); color: var(--c-earth);
+        font-size: 10px; font-weight: 700; letter-spacing: 1px;
+        text-transform: uppercase; padding: 4px 10px;
+        border-radius: 100px; margin-bottom: 10px;
+    }
+    .titulo-comunidade {
+        font-family: var(--font-display);
+        font-size: 28px; font-style: italic;
+        color: var(--c-earth); margin: 0; line-height: 1.15;
+        letter-spacing: -0.5px;
+    }
+    .comunidade-meta {
+        display: flex; gap: 12px; margin-top: 8px; flex-wrap: wrap;
+    }
+    .meta-chip {
+        font-size: 11px; color: var(--c-stone);
+        display: flex; align-items: center; gap: 4px;
+    }
+
+    /* ─── KPI GRID ───────────────────────────────────────────── */
+    .grid-kpi {
+        display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
+        margin-bottom: 28px;
+    }
+    .grid-kpi .card-kpi-full { grid-column: span 2; }
+
+    .card-kpi {
+        background: var(--c-white);
+        padding: 16px;
+        border-radius: var(--radius-md);
+        border: 1px solid rgba(0,0,0,0.05);
+        box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+        position: relative; overflow: hidden;
+        transition: transform 0.15s, box-shadow 0.15s;
+    }
+    .card-kpi:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 16px rgba(0,0,0,0.07);
+    }
+    .card-kpi-accent {
+        position: absolute; top: 0; left: 0;
+        width: 3px; height: 100%;
+        border-radius: 0 0 0 0;
+    }
+    .card-kpi-label {
+        font-size: 10px; font-weight: 600; letter-spacing: 1px;
+        text-transform: uppercase; color: var(--c-stone); margin-bottom: 6px;
+        display: flex; align-items: center; gap: 5px;
+    }
+    .card-kpi-value {
+        font-size: 26px; font-weight: 700; color: var(--c-earth);
+        line-height: 1;
+        font-variant-numeric: tabular-nums;
+    }
+    .card-kpi-unit {
+        font-size: 11px; font-weight: 400; color: var(--c-stone);
+        margin-left: 3px;
+    }
+
+    /* ─── SEÇÃO TITLE ────────────────────────────────────────── */
+    .secao-titulo {
+        font-size: 10px; font-weight: 700; letter-spacing: 1.5px;
+        text-transform: uppercase; color: var(--c-stone);
+        margin: 28px 0 14px 0;
+        display: flex; align-items: center; gap: 8px;
+    }
+    .secao-titulo::after {
+        content: ''; flex: 1; height: 1px; background: rgba(0,0,0,0.07);
+    }
+
+    /* ─── BARRAS DE PROGRESSO ────────────────────────────────── */
+    .item-barra { margin-bottom: 16px; }
+    .item-barra-header {
+        display: flex; justify-content: space-between;
+        align-items: baseline;
+        margin-bottom: 8px;
+    }
+    .item-barra-nome { font-size: 13px; font-weight: 500; color: var(--c-ink); display: flex; align-items: center; gap: 6px; }
+    .item-barra-valor { font-size: 12px; font-weight: 600; color: var(--c-earth); }
+    .item-barra-pct { font-size: 10px; color: var(--c-stone); font-weight: 400; margin-left: 4px; }
+
+    .track { width: 100%; height: 5px; background: rgba(0,0,0,0.06); border-radius: 100px; overflow: hidden; }
+    .fill  { height: 100%; border-radius: 100px; transition: width 0.6s var(--ease-out); }
+
+    /* ─── CARDS TEXTUAIS ─────────────────────────────────────── */
+    .card-texto {
+        padding: 16px 18px;
+        border-radius: var(--radius-md);
+        font-size: 13px; line-height: 1.65;
+        margin-top: 0; margin-bottom: 24px;
+    }
+    .card-texto.verde {
+        background: rgba(45,74,62,0.06);
+        color: var(--c-earth);
+        border: 1px solid rgba(45,74,62,0.12);
+    }
+    .card-texto.neutro {
+        background: var(--c-white);
+        color: #445;
+        border: 1px solid rgba(0,0,0,0.06);
+    }
+    .card-texto .nota-label {
+        font-size: 10px; font-weight: 700; letter-spacing: 1px;
+        text-transform: uppercase; color: var(--c-stone);
+        margin-bottom: 6px; display: block;
+    }
+
+    /* ─── LEAFLET CUSTOMIZAÇÃO ───────────────────────────────── */
+    .leaflet-bar {
+        border: 1px solid rgba(0,0,0,0.08) !important;
+        box-shadow: 0 2px 12px rgba(0,0,0,0.1) !important;
+        border-radius: var(--radius-sm) !important;
+        overflow: hidden;
+    }
+    .leaflet-bar a {
+        border-bottom: 1px solid rgba(0,0,0,0.06) !important;
+        color: var(--c-earth) !important;
+        font-weight: 600 !important;
+    }
+    .botao-geo {
+        background: white; width: 34px; height: 34px;
+        display: flex; align-items: center; justify-content: center;
+        font-size: 15px; cursor: pointer; border: none;
+        transition: background 0.15s;
+    }
+    .botao-geo:hover { background: var(--c-cream); }
+
+    .leaflet-control-search {
+        border: 1px solid rgba(0,0,0,0.1) !important;
+        box-shadow: 0 2px 12px rgba(0,0,0,0.1) !important;
+        border-radius: var(--radius-sm) !important;
+    }
+    .leaflet-control-search .search-input {
+        font-family: var(--font-body) !important;
+        font-size: 13px !important;
+    }
+
+    /* ─── FOOTER DO PAINEL ───────────────────────────────────── */
+    .painel-footer {
+        flex-shrink: 0;
+        padding: 14px 28px;
+        border-top: 1px solid rgba(0,0,0,0.06);
+        display: flex; align-items: center; justify-content: space-between;
+        background: var(--c-white);
+    }
+    .painel-footer-texto { font-size: 10px; color: var(--c-stone); }
+    .painel-footer-dot {
+        width: 6px; height: 6px; border-radius: 50%;
+        background: var(--c-mint);
+        box-shadow: 0 0 0 3px rgba(126,200,160,0.2);
+        animation: pulse-dot 2s infinite;
+    }
+    @keyframes pulse-dot {
+        0%, 100% { box-shadow: 0 0 0 3px rgba(126,200,160,0.2); }
+        50%       { box-shadow: 0 0 0 6px rgba(126,200,160,0.08); }
+    }
+
+    /* ─── ENTRADA ANIMADA ────────────────────────────────────── */
+    .fade-in {
+        animation: fadeInUp 0.35s var(--ease-out) both;
+    }
+    @keyframes fadeInUp {
+        from { opacity: 0; transform: translateY(10px); }
+        to   { opacity: 1; transform: translateY(0); }
+    }
