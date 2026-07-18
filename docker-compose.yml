@@ -10,7 +10,9 @@
 
 services:
   db:
-    image: postgis/postgis:15-3.5
+    # imresamu/postgis = mesma imagem PostGIS, com suporte a arm64
+    # (a oficial postgis/postgis so publica amd64; o servidor e ARM)
+    image: imresamu/postgis:15-3.5
     restart: unless-stopped
     environment:
       POSTGRES_DB: sigweb_caprinu
