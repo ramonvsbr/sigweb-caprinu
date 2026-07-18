@@ -1,0 +1,49 @@
+# SIGWeb Caprinu — API (FastAPI) + Banco (PostGIS)
+# Uso: cp .env.example .env  (edite a senha)  ->  docker compose up -d --build
+#
+# Na primeira inicialização do banco (volume vazio), a imagem postgis/postgis
+# cria o banco com a extensão PostGIS e executa os scripts de banco_de_dados/
+# na ordem numerada abaixo. Nas inicializações seguintes, nada é re-executado.
+#
+# O frontend/ NÃO roda em container: é servido como arquivo estático pelo
+# nginx do host (ver deploy/nginx-mapas.conf).
+
+services:
+  db:
+    image: postgis/postgis:15-3.5
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: sigweb_caprinu
+      POSTGRES_USER: sigweb
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      # A imagem cria a extensão PostGIS via script "10_postgis.sh";
+      # os prefixos 20_/30_ garantem que as tabelas venham depois dela.
+      - ./banco_de_dados/criacao_tabelas.sql:/docker-entrypoint-initdb.d/20_criacao_tabelas.sql:ro
+      - ./banco_de_dados/carga_inicial.sql:/docker-entrypoint-initdb.d/30_carga_inicial.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sigweb -d sigweb_caprinu"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build: ./backend
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DB_HOST: db
+      DB_PORT: "5432"
+      DB_NAME: sigweb_caprinu
+      DB_USER: sigweb
+      DB_PASSWORD: ${DB_PASSWORD}
+    # 127.0.0.1: só o nginx do próprio servidor acessa a API.
+    # Porta 8001 no host porque a 8000 já é do caprinu_api.
+    ports:
+      - "127.0.0.1:8001:8000"
+
+volumes:
+  pgdata:

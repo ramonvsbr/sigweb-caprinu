@@ -14,9 +14,9 @@ After=network.target postgresql.service
 User=www-data
 Group=www-data
 WorkingDirectory=/var/www/sigweb-caprinu/backend
-# Postgres do container caprinu_api-db-1, publicado no host na porta 5434
+# Postgres do container dedicado postgis-sigweb, publicado em 127.0.0.1:5433
 Environment="DB_HOST=localhost"
-Environment="DB_PORT=5434"
+Environment="DB_PORT=5433"
 Environment="DB_NAME=sigweb_caprinu"
 Environment="DB_USER=sigweb"
 Environment="DB_PASSWORD=TROQUE_PELA_SENHA_DO_USUARIO_SIGWEB"
