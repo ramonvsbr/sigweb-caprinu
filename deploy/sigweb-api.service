@@ -1,0 +1,29 @@
+# Serviço systemd do backend FastAPI.
+# Instalação no servidor:
+#   sudo cp deploy/sigweb-api.service /etc/systemd/system/
+#   (edite DB_PASSWORD abaixo antes de copiar)
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now sigweb-api
+# Logs: journalctl -u sigweb-api -f
+
+[Unit]
+Description=SIGWeb Caprinu API (FastAPI/Uvicorn)
+After=network.target postgresql.service
+
+[Service]
+User=www-data
+Group=www-data
+WorkingDirectory=/var/www/sigweb-caprinu/backend
+# Postgres do container caprinu_api-db-1, publicado no host na porta 5434
+Environment="DB_HOST=localhost"
+Environment="DB_PORT=5434"
+Environment="DB_NAME=sigweb_caprinu"
+Environment="DB_USER=sigweb"
+Environment="DB_PASSWORD=TROQUE_PELA_SENHA_DO_USUARIO_SIGWEB"
+# Porta 8001: a 8000 do host ja e usada pelo container caprinu_api-web-1
+ExecStart=/var/www/sigweb-caprinu/backend/venv/bin/uvicorn main:app --host 127.0.0.1 --port 8001
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

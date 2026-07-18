@@ -1,5 +1,9 @@
 // ─── CONFIG ──────────────────────────────────────────────────────────────────
-const API_URL = "http://127.0.0.1:8000/api/comunidades/geojson";
+// Em desenvolvimento local aponta direto para o Uvicorn; em produção usa o
+// caminho /mapas/api/ que o nginx repassa para o backend.
+const API_URL = (location.protocol === "file:" || ["localhost", "127.0.0.1"].includes(location.hostname))
+    ? "http://127.0.0.1:8000/api/comunidades/geojson"
+    : "/mapas/api/comunidades/geojson";
 
 // ─── MAPA ─────────────────────────────────────────────────────────────────────
 const limitesNordeste = L.latLngBounds(

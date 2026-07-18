@@ -2,6 +2,7 @@ from fastapi import FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional
+import os
 import psycopg2
 from psycopg2.extras import RealDictCursor
 
@@ -33,12 +34,15 @@ class NovaComunidadeForm(BaseModel):
     longitude: float
 
 # 2. CONEXÃO COM O BANCO (Com a correção de UTF-8 inclusa)
+# Em produção, defina as variáveis de ambiente DB_HOST, DB_NAME, DB_USER e
+# DB_PASSWORD (ver deploy/sigweb-api.service); os valores abaixo são o padrão local.
 def get_db_connection():
     return psycopg2.connect(
-        host="localhost", 
-        database="sigweb_caprinu", 
-        user="postgres", 
-        password="inovi",  # Mantenha a sua senha aqui
+        host=os.getenv("DB_HOST", "localhost"),
+        port=os.getenv("DB_PORT", "5432"),
+        database=os.getenv("DB_NAME", "sigweb_caprinu"),
+        user=os.getenv("DB_USER", "postgres"),
+        password=os.getenv("DB_PASSWORD", "inovi"),
         client_encoding="utf8",
         cursor_factory=RealDictCursor
     )
