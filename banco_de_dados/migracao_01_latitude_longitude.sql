@@ -8,9 +8,8 @@
 -- geom como coluna GERADA, o Django escreve dois números e o PostGIS mantém o
 -- ponto — a view, o índice espacial e a API continuam funcionando igual.
 --
--- Como aplicar (com o container do banco de pé):
---   docker compose exec -T sigweb-db psql -U sigweb -d sigweb_caprinu \
---       < banco_de_dados/migracao_01_latitude_longitude.sql
+-- Não precisa aplicar à mão: o serviço sigweb-migrate roda a cada
+-- `docker compose up` e aplica o que ainda falta (ver aplicar_migracoes.sh).
 --
 -- É idempotente: rodar duas vezes não causa dano.
 

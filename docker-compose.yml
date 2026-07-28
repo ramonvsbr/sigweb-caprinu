@@ -4,7 +4,7 @@
 # Na primeira inicialização do banco (volume vazio), a imagem postgis/postgis
 # cria o banco com a extensão PostGIS e executa os scripts de banco_de_dados/
 # na ordem numerada abaixo. Nas inicializações seguintes, nada é re-executado —
-# num banco que já existe, aplique as migrações de banco_de_dados/ à mão.
+# num banco que já existe, quem atualiza o esquema é o serviço sigweb-migrate.
 #
 # O frontend/ NÃO roda em container: é servido como arquivo estático pelo
 # nginx do host (ver deploy/nginx-mapas.conf).
@@ -38,10 +38,37 @@ services:
       - default
       - caprinu
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U sigweb -d sigweb_caprinu"]
+      # O "-h 127.0.0.1" é essencial: durante o initdb a imagem sobe um servidor
+      # temporário que escuta só no socket unix, e um pg_isready sem host o
+      # encontraria — dando "healthy" antes de o banco aceitar conexões de rede,
+      # e quem depende dele largaria cedo demais.
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U sigweb -d sigweb_caprinu"]
       interval: 5s
       timeout: 5s
       retries: 10
+
+  # Roda uma vez a cada `up` e sai: aplica as migrações de banco_de_dados/ que
+  # ainda faltam neste volume. Mesma imagem do banco, só pelo psql — nada novo
+  # para baixar. Sem isso, um banco criado por uma versão antiga de
+  # criacao_tabelas.sql fica com o esquema defasado (foi o que quebrou o admin
+  # do Django com "column comunidades.latitude does not exist").
+  sigweb-migrate:
+    image: imresamu/postgis:15-3.5
+    restart: "no"
+    depends_on:
+      sigweb-db:
+        condition: service_healthy
+    environment:
+      DB_HOST: sigweb-db
+      DB_PORT: "5432"
+      DB_NAME: sigweb_caprinu
+      DB_USER: sigweb
+      DB_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - ./banco_de_dados:/migracoes:ro
+    # Sobrescreve o entrypoint da imagem (que subiria um servidor Postgres).
+    # Invocado via `sh script` de propósito: não depende do bit de execução.
+    entrypoint: ["sh", "/migracoes/aplicar_migracoes.sh"]
 
   api:
     build: ./backend
@@ -49,6 +76,9 @@ services:
     depends_on:
       sigweb-db:
         condition: service_healthy
+      # Nunca serve dados por cima de um esquema desatualizado.
+      sigweb-migrate:
+        condition: service_completed_successfully
     environment:
       DB_HOST: sigweb-db
       DB_PORT: "5432"
