@@ -13,8 +13,12 @@ jobs:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_KEY }}
+          # Sem isto, o ssh-action usa como resultado o status do ÚLTIMO comando:
+          # um `cd` que falha passa batido, o `docker image prune` no fim devolve
+          # 0 e o run fica verde sem ter feito deploy nenhum.
+          script_stop: true
           script: |
-            cd /var/www/meu-projeto
+            cd /var/www/sigweb-caprinu
             git pull origin main
             docker compose up -d --build
             docker image prune -f
