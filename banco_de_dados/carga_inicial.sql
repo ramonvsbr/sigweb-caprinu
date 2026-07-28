@@ -1,18 +1,19 @@
 -- Garante que o banco está limpo antes da carga (opcional, mas bom para evitar duplicidade)
 TRUNCATE comunidades, coletas_producao RESTART IDENTITY CASCADE;
 
--- 1. Inserção das 10 Comunidades (Coordenadas Reais do Semiárido - Longitude primeiro no PostGIS)
-INSERT INTO comunidades (nome, informacoes_adicionais, geom) VALUES
-('Associação Vereda do Bode', 'Região de sequeiro, forte tradição em caprinos.', ST_SetSRID(ST_MakePoint(-40.2534, -9.3845), 4326)),
-('Cooperativa Mandacaru', 'Próxima à bacia do São Francisco.', ST_SetSRID(ST_MakePoint(-40.5012, -9.4021), 4326)),
-('Comunidade Angico Seco', 'Grupo de mulheres produtoras de derivados de leite.', ST_SetSRID(ST_MakePoint(-39.8214, -10.1245), 4326)),
-('Associação Caroá', 'Foco em melhoramento genético de ovinos.', ST_SetSRID(ST_MakePoint(-39.5055, -9.8912), 4326)),
-('Sítio Umbuzeiro Grande', 'Produção integrada com palma forrageira.', ST_SetSRID(ST_MakePoint(-40.1123, -9.6541), 4326)),
-('Comunidade Caatinga Viva', 'Projeto piloto de manejo sustentável da vegetação nativa.', ST_SetSRID(ST_MakePoint(-40.7891, -9.2104), 4326)),
-('Associação Riacho do Mel', 'Pequenos produtores familiares agrupados.', ST_SetSRID(ST_MakePoint(-39.2987, -8.7541), 4326)),
-('Cooperativa Bode Rei', 'Famosa pela feira de animais local.', ST_SetSRID(ST_MakePoint(-38.9542, -7.8845), 4326)),
-('Associação Sertão Verde', 'Dificuldade histórica de acesso à água, uso de cisternas.', ST_SetSRID(ST_MakePoint(-41.1245, -10.5012), 4326)),
-('Comunidade Algodões', 'Parceria com o poder público para assistência técnica.', ST_SetSRID(ST_MakePoint(-39.9512, -9.1124), 4326));
+-- 1. Inserção das 10 Comunidades (Coordenadas Reais do Semiárido)
+-- geom é coluna gerada: informe apenas latitude e longitude.
+INSERT INTO comunidades (nome, informacoes_adicionais, latitude, longitude) VALUES
+('Associação Vereda do Bode', 'Região de sequeiro, forte tradição em caprinos.', -9.3845, -40.2534),
+('Cooperativa Mandacaru', 'Próxima à bacia do São Francisco.', -9.4021, -40.5012),
+('Comunidade Angico Seco', 'Grupo de mulheres produtoras de derivados de leite.', -10.1245, -39.8214),
+('Associação Caroá', 'Foco em melhoramento genético de ovinos.', -9.8912, -39.5055),
+('Sítio Umbuzeiro Grande', 'Produção integrada com palma forrageira.', -9.6541, -40.1123),
+('Comunidade Caatinga Viva', 'Projeto piloto de manejo sustentável da vegetação nativa.', -9.2104, -40.7891),
+('Associação Riacho do Mel', 'Pequenos produtores familiares agrupados.', -8.7541, -39.2987),
+('Cooperativa Bode Rei', 'Famosa pela feira de animais local.', -7.8845, -38.9542),
+('Associação Sertão Verde', 'Dificuldade histórica de acesso à água, uso de cisternas.', -10.5012, -41.1245),
+('Comunidade Algodões', 'Parceria com o poder público para assistência técnica.', -9.1124, -39.9512);
 
 -- 2. Inserção das Coletas Zootécnicas Casadas (ID 1 a 10)
 INSERT INTO coletas_producao (comunidade_id, data_coleta, total_produtores, qtd_caprinos, qtd_ovinos, criacao_extensiva, criacao_semi_extensiva, criacao_intensiva, escrituracao_sim, escrituracao_nao, observacoes) VALUES

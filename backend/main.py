@@ -66,13 +66,14 @@ async def cadastrar_comunidade(dados: NovaComunidadeForm):
     conn = get_db_connection()
     cursor = conn.cursor()
     try:
-        # Insere na tabela comunidades e retorna o ID gerado (Longitude primeiro no PostGIS!)
+        # Insere na tabela comunidades e retorna o ID gerado.
+        # geom é coluna gerada no banco: basta gravar latitude/longitude.
         query_c = """
-            INSERT INTO comunidades (nome, informacoes_adicionais, geom) 
-            VALUES (%s, %s, ST_SetSRID(ST_MakePoint(%s, %s), 4326)) 
+            INSERT INTO comunidades (nome, informacoes_adicionais, latitude, longitude)
+            VALUES (%s, %s, %s, %s)
             RETURNING id;
         """
-        cursor.execute(query_c, (dados.nome, dados.informacoes_adicionais, dados.longitude, dados.latitude))
+        cursor.execute(query_c, (dados.nome, dados.informacoes_adicionais, dados.latitude, dados.longitude))
         novo_id = cursor.fetchone()['id']
 
         # Insere na tabela de dados zootécnicos usando o ID da comunidade recém-criada
@@ -125,8 +126,11 @@ async def obter_geojson():
                         'escrituracao_nao', escrituracao_nao,
                         'observacoes', observacoes
                     )
-                ) AS feature 
+                ) AS feature
                 FROM vw_comunidades_dashboard
+                -- Comunidade sem coordenada não vira ponto: o Leaflet quebra
+                -- ao receber uma feature com geometry nula.
+                WHERE geom IS NOT NULL
             ) features;
         """
         cursor.execute(query)

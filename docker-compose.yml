@@ -3,13 +3,20 @@
 #
 # Na primeira inicialização do banco (volume vazio), a imagem postgis/postgis
 # cria o banco com a extensão PostGIS e executa os scripts de banco_de_dados/
-# na ordem numerada abaixo. Nas inicializações seguintes, nada é re-executado.
+# na ordem numerada abaixo. Nas inicializações seguintes, nada é re-executado —
+# num banco que já existe, aplique as migrações de banco_de_dados/ à mão.
 #
 # O frontend/ NÃO roda em container: é servido como arquivo estático pelo
 # nginx do host (ver deploy/nginx-mapas.conf).
+#
+# O cadastro dos dados é feito pelo admin do Django (projeto caprinu_api), que
+# se conecta neste mesmo banco — ver a rede "caprinu" no fim do arquivo.
 
 services:
-  db:
+  # O serviço se chama sigweb-db, e não db, porque ele entra também na rede do
+  # caprinu_api — onde já existe um "db" (o Postgres do Django). Dois serviços
+  # com o mesmo nome na mesma rede deixariam o DNS ambíguo.
+  sigweb-db:
     # imresamu/postgis = mesma imagem PostGIS, com suporte a arm64
     # (a oficial postgis/postgis so publica amd64; o servidor e ARM)
     image: imresamu/postgis:15-3.5
@@ -24,6 +31,12 @@ services:
       # os prefixos 20_/30_ garantem que as tabelas venham depois dela.
       - ./banco_de_dados/criacao_tabelas.sql:/docker-entrypoint-initdb.d/20_criacao_tabelas.sql:ro
       - ./banco_de_dados/carga_inicial.sql:/docker-entrypoint-initdb.d/30_carga_inicial.sql:ro
+    # Publicado só no loopback: psql do host e backend rodando fora do Docker.
+    ports:
+      - "127.0.0.1:5433:5432"
+    networks:
+      - default
+      - caprinu
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U sigweb -d sigweb_caprinu"]
       interval: 5s
@@ -34,10 +47,10 @@ services:
     build: ./backend
     restart: unless-stopped
     depends_on:
-      db:
+      sigweb-db:
         condition: service_healthy
     environment:
-      DB_HOST: db
+      DB_HOST: sigweb-db
       DB_PORT: "5432"
       DB_NAME: sigweb_caprinu
       DB_USER: sigweb
@@ -49,3 +62,12 @@ services:
 
 volumes:
   pgdata:
+
+networks:
+  # Rede criada pelo compose do caprinu_api — é por ela que o admin do Django
+  # alcança este banco (host "sigweb-db"). Confira o nome exato com
+  # `docker network ls | grep traefik` e, se for diferente, defina
+  # CAPRINU_NETWORK no .env.
+  caprinu:
+    external: true
+    name: ${CAPRINU_NETWORK:-caprinu_api_traefik_proxy}
