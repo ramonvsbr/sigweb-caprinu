@@ -48,39 +48,13 @@ body {
     display: flex;
     flex-direction: column;
     z-index: 1000;
-    overflow: visible; /* Permite que o botão ultrapasse a borda esquerda */
+    overflow: hidden;
     transition: transform 0.4s var(--ease-out);
-    position: relative;
 }
 
 #painel-lateral.colapsado {
     transform: translateX(var(--sidebar-w));
     position: absolute; right: 0;
-}
-
-/* ─── BOTÃO TOGGLE EMBUTIDO ──────────────────────────────── */
-.botao-toggle-painel {
-    position: absolute;
-    top: 20px;
-    left: -40px; /* Fixa o botão na borda esquerda do painel */
-    z-index: 1100;
-    background: var(--c-earth);
-    color: var(--c-mint);
-    border: none;
-    width: 40px; 
-    height: 40px;
-    border-radius: var(--radius-sm) 0 0 var(--radius-sm); /* Arredonda apenas o canto esquerdo */
-    font-size: 16px; 
-    cursor: pointer;
-    box-shadow: -4px 4px 12px rgba(0,0,0,0.15);
-    display: flex; 
-    align-items: center; 
-    justify-content: center;
-    transition: background 0.2s;
-}
-
-.botao-toggle-painel:hover {
-    background: var(--c-sage);
 }
 
 /* ─── TOPO DO PAINEL ─────────────────────────────────────── */
@@ -99,6 +73,36 @@ body {
     position: absolute; inset: 0;
     background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.03'%3E%3Ccircle cx='30' cy='30' r='2'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
     pointer-events: none;
+}
+
+/* BOTÃO FECHAR INTERNO */
+.btn-fechar-painel {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    background: rgba(255, 255, 255, 0.12);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: var(--c-white);
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    font-size: 14px;
+    font-weight: bold;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.2s, transform 0.2s;
+    z-index: 10;
+}
+
+.btn-fechar-painel:hover {
+    background: rgba(255, 255, 255, 0.25);
+    transform: scale(1.05);
+}
+
+.btn-fechar-painel:active {
+    transform: scale(0.95);
 }
 
 .logo-area {
@@ -153,6 +157,25 @@ body {
 .select-wrapper select:hover  { border-color: rgba(255,255,255,0.3); }
 .select-wrapper select:focus  { border-color: var(--c-mint); }
 .select-wrapper select option { color: var(--c-ink); background: #fff; }
+
+/* ─── BOTÃO TOGGLE ───────────────────────────────────────── */
+.botao-toggle-painel {
+    position: absolute;
+    top: 20px;
+    right: calc(var(--sidebar-w) + 12px);
+    z-index: 1100;
+    background: var(--c-earth);
+    color: var(--c-mint);
+    border: none;
+    width: 40px; height: 40px;
+    border-radius: var(--radius-sm);
+    font-size: 16px; cursor: pointer;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.25);
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.2s;
+}
+.botao-toggle-painel:hover { background: var(--c-sage); }
+body:has(#painel-lateral.colapsado) .botao-toggle-painel { right: 12px; }
 
 /* ─── SCROLL BODY ────────────────────────────────────────── */
 #scroll-painel {

@@ -18,16 +18,18 @@
 </head>
 <body>
 
+    <button class="botao-toggle-painel" onclick="togglePainel()" title="Mostrar/Ocultar painel">
+        ☰
+    </button>
+
     <div id="map"></div>
 
     <div id="painel-lateral">
-        <!-- BOTÃO EMBUTIDO -->
-        <button class="botao-toggle-painel" onclick="togglePainel()" title="Mostrar/Ocultar painel">
-            ☰
-        </button>
-
         <!-- TOPO -->
         <div class="topo-painel">
+            <!-- BOTÃO FECHAR INTERNO -->
+            <button class="btn-fechar-painel" onclick="togglePainel()" title="Fechar painel">✕</button>
+
             <div class="logo-area">
                 <div class="logo-icon">🐐</div>
                 <div class="logo-text-group">
