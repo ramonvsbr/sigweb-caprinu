@@ -21,9 +21,10 @@ const map = L.map('map', {
     zoomControl: false,
 });
 
-// Tile Layer — Alterado do CARTO para Esri World Topo Map (Gratuito e sem API Key)
-L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}', {
-    attribution: 'Tiles © <a href="https://services.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer">Esri</a>'
+// Tile Layer — OpenStreetMap (Gratuito, sem necessidade de API Key)
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19,
+    attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
 }).addTo(map);
 
 // Controles de zoom posicionados à esquerda
