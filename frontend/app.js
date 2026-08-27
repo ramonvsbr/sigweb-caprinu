@@ -21,9 +21,9 @@ const map = L.map('map', {
     zoomControl: false,
 });
 
-// Tile Layer — estilo neutro que combina com o painel terroso
-L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
-    attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> © <a href="https://carto.com/">CARTO</a>'
+// Tile Layer — Alterado do CARTO para Esri World Topo Map (Gratuito e sem API Key)
+L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}', {
+    attribution: 'Tiles © <a href="https://services.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer">Esri</a>'
 }).addTo(map);
 
 // Controles de zoom posicionados à esquerda
@@ -85,37 +85,33 @@ async function carregarDadosDaAPI() {
 
 // ─── CÁLCULO DE RAIO (Otimizado para Pixels em Tela) ──────────────────────────
 function calcularRaio(valor, tipo) {
-    // Reduzimos drasticamente os raios para se adequarem a pixels de tela (L.circleMarker)
     if (tipo === 'total_produtores') {
         return Math.min(Math.max(valor * 1.5, 6), 25); // Raio mínimo de 6px e máximo de 25px
     }
-    // Raio baseado na raiz quadrada para rebanhos grandes não dominarem a tela
     return Math.min(Math.max(Math.sqrt(valor || 1) * 0.8, 6), 25);
 }
 
 // ─── RENDERIZAÇÃO ESPACIAL COM CLUSTER ────────────────────────────────────────
 const CORES_FILTRO = {
-    qtd_ovinos:            { fill: '#2D4A3E', stroke: '#4A7C6F' },
-    qtd_caprinos:          { fill: '#4A7C6F', stroke: '#7EC8A0' },
-    total_produtores:      { fill: '#C8823A', stroke: '#E8A86A' },
-    criacao_extensiva:     { fill: '#b45309', stroke: '#d97706' },
-    criacao_semi_extensiva:{ fill: '#d97706', stroke: '#f59e0b' },
-    criacao_intensiva:     { fill: '#dc2626', stroke: '#ef4444' }
+    qtd_ovinos:             { fill: '#2D4A3E', stroke: '#4A7C6F' },
+    qtd_caprinos:           { fill: '#4A7C6F', stroke: '#7EC8A0' },
+    total_produtores:       { fill: '#C8823A', stroke: '#E8A86A' },
+    criacao_extensiva:      { fill: '#b45309', stroke: '#d97706' },
+    criacao_semi_extensiva: { fill: '#d97706', stroke: '#f59e0b' },
+    criacao_intensiva:      { fill: '#dc2626', stroke: '#ef4444' }
 };
 
 function renderizarCamadaEspacial(dadosGeo) {
-    // Remove o grupo de clusters antigo se ele já existir
     if (grupoCluster) map.removeLayer(grupoCluster);
 
     const filtro = document.getElementById('filtro-dados').value;
     const cores  = CORES_FILTRO[filtro] || CORES_FILTRO.qtd_ovinos;
 
-    // Inicializa o plugin de cluster com animações suaves
     grupoCluster = L.markerClusterGroup({
         spiderfyOnMaxZoom: true,
         showCoverageOnHover: false,
         zoomToBoundsOnClick: true,
-        maxClusterRadius: 45 // Distância em pixels para agrupar pontos próximos
+        maxClusterRadius: 45
     });
 
     camadaGeoJson = L.geoJSON(dadosGeo, {
@@ -123,7 +119,6 @@ function renderizarCamadaEspacial(dadosGeo) {
             const valor = feature.properties[filtro] || 0;
             const raio  = calcularRaio(valor, filtro);
             
-            // CORREÇÃO: L.circleMarker mantém o tamanho fixo e proporcional na tela baseado em pixels!
             return L.circleMarker(latlng, {
                 radius:      raio,
                 fillColor:   cores.fill,
@@ -138,7 +133,6 @@ function renderizarCamadaEspacial(dadosGeo) {
 
             layer.on({
                 click: (e) => {
-                    // Evita propagação para o mapa disparar outros eventos involuntários
                     L.DomEvent.stopPropagation(e);
                     
                     const painel = document.getElementById('painel-lateral');
@@ -151,7 +145,6 @@ function renderizarCamadaEspacial(dadosGeo) {
         }
     });
 
-    // Em vez de adicionar a camada direto no mapa, adicionamos no Cluster
     grupoCluster.addLayer(camadaGeoJson);
     map.addLayer(grupoCluster);
 }
@@ -160,17 +153,15 @@ function renderizarCamadaEspacial(dadosGeo) {
 function exibirDadosNoPainel(p) {
     const painel = document.getElementById('conteudo-dinamico');
 
-    // Sistemas de criação
-    const ext   = p.criacao_extensiva       || 0;
+    const ext   = p.criacao_extensiva        || 0;
     const semi  = p.criacao_semi_extensiva  || 0;
-    const int_  = p.criacao_intensiva       || 0;
+    const int_  = p.criacao_intensiva        || 0;
     const totSis = ext + semi + int_ || 1;
 
     const pctExt  = +((ext  / totSis) * 100).toFixed(0);
     const pctSemi = +((semi / totSis) * 100).toFixed(0);
     const pctInt  = +((int_ / totSis) * 100).toFixed(0);
 
-    // Escrituração
     const escrSim = p.escrituracao_sim || 0;
     const escrNao = p.escrituracao_nao || 0;
     const totEscr = escrSim + escrNao || 1;
@@ -246,23 +237,20 @@ function exibirDadosNoPainel(p) {
 
 // ─── BUSCA ESPACIAL (Adaptada para abrir o Cluster) ───────────────────────────
 function configurarBarraDeBusca() {
-    // Se o controle de busca já existe, não duplica
     const buscaExistente = map.controls ? map.controls.find(c => c instanceof L.Control.Search) : null;
     if (buscaExistente) map.removeControl(buscaExistente);
 
     const controleBusca = new L.Control.Search({
-        layer: grupoCluster, // Aponta para o Cluster para conseguir achar marcadores recolhidos
+        layer: grupoCluster,
         propertyName: 'title',
         marker: false,
         moveToLocation: function(latlng, title) {
-            // Encontra o marcador correspondente
             let marcadorAlvo = null;
             camadaGeoJson.eachLayer(layer => {
                 if (layer.feature.properties.nome === title) marcadorAlvo = layer;
             });
 
             if (marcadorAlvo) {
-                // Força o plugin de cluster a dar zoom e abrir o grupo até revelar este ponto específico
                 grupoCluster.zoomToShowLayer(marcadorAlvo, () => {
                     map.setView(latlng, 13);
                     marcadorAlvo.fire('click');
