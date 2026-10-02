@@ -3,11 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#041b5d">
     <title>CaprinuSIG</title>
 
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+    <!-- Fonte: sistema (mesma pilha do InOviSertão), sem Google Fonts -->
 
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet-search@3.0.9/dist/leaflet-search.src.css" />
@@ -18,8 +17,8 @@
 </head>
 <body>
 
-    <button class="botao-toggle-painel" onclick="togglePainel()" title="Mostrar/Ocultar painel">
-        ☰
+    <button class="botao-toggle-painel" onclick="togglePainel()" title="Mostrar/Ocultar painel" aria-label="Mostrar ou ocultar painel">
+        <i data-lucide="panel-right"></i>
     </button>
 
     <div id="map"></div>
@@ -28,23 +27,26 @@
         <!-- TOPO -->
         <div class="topo-painel">
             <!-- BOTÃO FECHAR INTERNO -->
-            <button class="btn-fechar-painel" onclick="togglePainel()" title="Fechar painel">✕</button>
+            <button class="btn-fechar-painel" onclick="togglePainel()" title="Fechar painel" aria-label="Fechar painel">
+                <i data-lucide="x"></i>
+            </button>
 
             <div class="logo-area">
-                <div class="logo-icon">🐐</div>
+                <div class="logo-icon"><i data-lucide="map-pinned"></i></div>
                 <div class="logo-text-group">
-                    <p class="logo-title">CaprinuSdIG</p>
-                    <p class="logo-subtitle">Caprinovinocultura · Semiárido</p>
+                    <p class="logo-title">CaprinuSIG</p>
+                    <p class="logo-subtitle">Caprinovinocultura no Semiárido</p>
                 </div>
             </div>
 
-            <span class="filtro-label">Métrica Espacial</span>
+            <label class="filtro-label" for="filtro-dados">Métrica espacial</label>
             <div class="select-wrapper">
                 <select id="filtro-dados">
                     <option value="qtd_ovinos">Quantidade de Ovinos</option>
                     <option value="qtd_caprinos">Quantidade de Caprinos</option>
                     <option value="total_produtores">Total de Produtores</option>
                 </select>
+                <i data-lucide="chevron-down"></i>
             </div>
         </div>
 
@@ -52,7 +54,7 @@
         <div id="scroll-painel">
             <div id="conteudo-dinamico" class="conteudo-painel">
                 <div class="placeholder-wrap">
-                    <div class="placeholder-icon">🗺️</div>
+                    <div class="placeholder-icon"><i data-lucide="map"></i></div>
                     <p class="placeholder-texto">Carregando dados<br>geoespaciais da API…</p>
                 </div>
             </div>
@@ -60,7 +62,7 @@
 
         <!-- RODAPÉ -->
         <div class="painel-footer">
-            <span class="painel-footer-texto">API conectada · Dados em tempo real</span>
+            <span class="painel-footer-texto" id="status-texto">Conectando à API…</span>
             <div class="painel-footer-dot" id="status-dot" title="Status da API"></div>
         </div>
     </div>
@@ -68,6 +70,7 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://unpkg.com/leaflet-search@3.0.9/dist/leaflet-search.src.js"></script>
     <script src="https://unpkg.com/leaflet.markercluster@1.4.1/dist/leaflet.markercluster.js"></script>
+    <script src="https://unpkg.com/lucide@0.453.0/dist/umd/lucide.min.js"></script>
     <script src="app.js"></script>
 </body>
 </html>

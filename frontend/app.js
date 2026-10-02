@@ -5,6 +5,19 @@ const API_URL = (location.protocol === "file:" || ["localhost", "127.0.0.1"].inc
     ? "http://127.0.0.1:8000/api/comunidades/geojson"
     : "/mapas/api/comunidades/geojson";
 
+// ─── UTILITÁRIOS ──────────────────────────────────────────────────────────────
+// Ícones Lucide: <i data-lucide="..."> vira <svg>. Chamar de novo sempre que
+// um HTML com ícones for inserido dinamicamente.
+const ico = (nome) => `<i data-lucide="${nome}"></i>`;
+const renderizarIcones = () => { if (window.lucide) lucide.createIcons(); };
+
+// Evita que texto vindo da API seja interpretado como HTML.
+function esc(valor) {
+    return String(valor ?? '').replace(/[&<>"']/g, (c) => (
+        { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
+    ));
+}
+
 // ─── MAPA ─────────────────────────────────────────────────────────────────────
 const limitesNordeste = L.latLngBounds(
     L.latLng(-18.5, -49.0),
@@ -59,29 +72,32 @@ async function carregarDadosDaAPI() {
         configurarBarraDeBusca();
 
         // Atualiza status visual
-        if(dot) dot.style.background = '#7EC8A0';
+        if (dot) { dot.classList.remove('erro'); dot.classList.add('ok'); }
+        document.getElementById('status-texto').textContent = 'API conectada · Dados em tempo real';
 
         document.getElementById('conteudo-dinamico').innerHTML = `
             <div class="placeholder-wrap fade-in">
-                <div class="placeholder-icon">📍</div>
+                <div class="placeholder-icon">${ico('mouse-pointer-click')}</div>
                 <p class="placeholder-texto">
-                    Clique em uma comunidade no mapa<br>para visualizar o relatório analítico.
+                    Clique em uma comunidade no mapa<br>para ver o relatório.
                 </p>
             </div>
         `;
     } catch (erro) {
         console.error("Erro na API:", erro);
-        if(dot) dot.style.background = '#C85A3A';
+        if (dot) { dot.classList.remove('ok'); dot.classList.add('erro'); }
+        document.getElementById('status-texto').textContent = 'API indisponível';
         document.getElementById('conteudo-dinamico').innerHTML = `
-            <div class="placeholder-wrap fade-in">
-                <div class="placeholder-icon">⚠️</div>
-                <p class="placeholder-texto" style="color: #C85A3A;">
+            <div class="placeholder-wrap erro fade-in">
+                <div class="placeholder-icon">${ico('triangle-alert')}</div>
+                <p class="placeholder-texto">
                     Não foi possível carregar os dados.<br>
                     Verifique se a API está em execução.
                 </p>
             </div>
         `;
     }
+    renderizarIcones();
 }
 
 // ─── CÁLCULO DE RAIO (Otimizado para Pixels em Tela) ──────────────────────────
@@ -93,13 +109,26 @@ function calcularRaio(valor, tipo) {
 }
 
 // ─── RENDERIZAÇÃO ESPACIAL COM CLUSTER ────────────────────────────────────────
+// Hex equivalentes (oklch -> hex) da paleta .theme-inovisertao do globals.css.
+// O Leaflet precisa de cor literal no SVG; no resto da interface usamos var(--*).
+const PALETA = {
+    primary:     '#2d69de',   // azul da marca
+    primaryDark: '#0e49bc',
+    navy:        '#1b3a8f',   // marinho (um pouco mais claro que o do painel, para aparecer no mapa)
+    navyDark:    '#041b5d',
+    warning:     '#eab444',
+    warningDark: '#c98f12',
+    success:     '#269143',
+    destructive: '#d4302e',
+};
+
 const CORES_FILTRO = {
-    qtd_ovinos:             { fill: '#2D4A3E', stroke: '#4A7C6F' },
-    qtd_caprinos:           { fill: '#4A7C6F', stroke: '#7EC8A0' },
-    total_produtores:       { fill: '#C8823A', stroke: '#E8A86A' },
-    criacao_extensiva:      { fill: '#b45309', stroke: '#d97706' },
-    criacao_semi_extensiva: { fill: '#d97706', stroke: '#f59e0b' },
-    criacao_intensiva:      { fill: '#dc2626', stroke: '#ef4444' }
+    qtd_ovinos:             { fill: PALETA.navy,        stroke: PALETA.navyDark },
+    qtd_caprinos:           { fill: PALETA.primary,     stroke: PALETA.primaryDark },
+    total_produtores:       { fill: PALETA.warning,     stroke: PALETA.warningDark },
+    criacao_extensiva:      { fill: PALETA.success,     stroke: PALETA.success },
+    criacao_semi_extensiva: { fill: PALETA.warning,     stroke: PALETA.warningDark },
+    criacao_intensiva:      { fill: PALETA.destructive, stroke: PALETA.destructive }
 };
 
 function renderizarCamadaEspacial(dadosGeo) {
@@ -170,15 +199,15 @@ function exibirDadosNoPainel(p) {
     const pctSim = +((escrSim / totEscr) * 100).toFixed(0);
     const pctNao = +((escrNao / totEscr) * 100).toFixed(0);
 
-    function barra(nome, icon, valor, pct, cor) {
+    function barra(nome, icone, valor, pct, cor) {
         return `
         <div class="item-barra">
             <div class="item-barra-header">
-                <span class="item-barra-nome">${icon} ${nome}</span>
+                <span class="item-barra-nome">${ico(icone)} ${nome}</span>
                 <span class="item-barra-valor">${valor} <span class="item-barra-pct">(${pct}%)</span></span>
             </div>
             <div class="track">
-                <div class="fill" style="width:${pct}%; background:${cor};"></div>
+                <div class="fill" style="width:${pct}%; --cor:${cor};"></div>
             </div>
         </div>`;
     }
@@ -187,53 +216,55 @@ function exibirDadosNoPainel(p) {
     <div class="conteudo-painel fade-in">
 
         <div class="comunidade-header">
-            <div class="badge-regiao">📍 Semiárido Nordestino</div>
-            <h2 class="titulo-comunidade">${p.nome}</h2>
+            <div class="badge-regiao">${ico('map-pin')} Semiárido Nordestino</div>
+            <h2 class="titulo-comunidade">${esc(p.nome)}</h2>
             <div class="comunidade-meta">
-                <span class="meta-chip">🗂 Registro Integrado</span>
-                <span class="meta-chip">📡 Dados em tempo real</span>
+                <span class="meta-chip">${ico('database')} Registro integrado</span>
+                <span class="meta-chip">${ico('radio')} Dados em tempo real</span>
             </div>
         </div>
 
         <div class="grid-kpi">
-            <div class="card-kpi card-kpi-full">
-                <div class="card-kpi-accent" style="background:#C8823A;"></div>
-                <div class="card-kpi-label" style="padding-left:10px;">👥 Total de Produtores</div>
-                <div class="card-kpi-value" style="padding-left:10px;">${p.total_produtores || 0}</div>
+            <div class="card-kpi card-kpi-full" style="--acc: var(--warning);">
+                <div class="card-kpi-accent"></div>
+                <div class="card-kpi-label">${ico('users')} Total de produtores</div>
+                <div class="card-kpi-value">${p.total_produtores || 0}</div>
             </div>
-            <div class="card-kpi">
-                <div class="card-kpi-accent" style="background:#4A7C6F;"></div>
-                <div class="card-kpi-label" style="padding-left:10px;">🐐 Caprinos</div>
-                <div class="card-kpi-value" style="padding-left:10px;">${p.qtd_caprinos || 0}<span class="card-kpi-unit">cab.</span></div>
+            <div class="card-kpi" style="--acc: var(--primary);">
+                <div class="card-kpi-accent"></div>
+                <div class="card-kpi-label">${ico('paw-print')} Caprinos</div>
+                <div class="card-kpi-value">${p.qtd_caprinos || 0}<span class="card-kpi-unit">cab.</span></div>
             </div>
-            <div class="card-kpi">
-                <div class="card-kpi-accent" style="background:#2D4A3E;"></div>
-                <div class="card-kpi-label" style="padding-left:10px;">🐑 Ovinos</div>
-                <div class="card-kpi-value" style="padding-left:10px;">${p.qtd_ovinos || 0}<span class="card-kpi-unit">cab.</span></div>
+            <div class="card-kpi" style="--acc: var(--secondary);">
+                <div class="card-kpi-accent"></div>
+                <div class="card-kpi-label">${ico('paw-print')} Ovinos</div>
+                <div class="card-kpi-value">${p.qtd_ovinos || 0}<span class="card-kpi-unit">cab.</span></div>
             </div>
         </div>
 
-        <div class="secao-titulo">Sistemas de Criação</div>
-        ${barra('Extensiva',     '🏡', ext,  pctExt,  'linear-gradient(90deg,#2D4A3E,#7EC8A0)')}
-        ${barra('Semi-extensiva','🧭', semi, pctSemi, 'linear-gradient(90deg,#4A7C6F,#7EC8A0)')}
-        ${barra('Intensiva',     '🏭', int_, pctInt,  'linear-gradient(90deg,#C8823A,#E8A86A)')}
+        <div class="secao-titulo">Sistemas de criação</div>
+        ${barra('Extensiva',      'trees',   ext,  pctExt,  'var(--success)')}
+        ${barra('Semi-extensiva', 'compass', semi, pctSemi, 'var(--primary)')}
+        ${barra('Intensiva',      'factory', int_, pctInt,  'var(--warning)')}
 
-        <div class="secao-titulo">Escrituração Zootécnica</div>
-        ${barra('Realizam controle', '✅', escrSim, pctSim, '#4A7C6F')}
-        ${barra('Não realizam',      '❌', escrNao, pctNao, '#C85A3A')}
+        <div class="secao-titulo">Escrituração zootécnica</div>
+        ${barra('Realizam controle', 'circle-check', escrSim, pctSim, 'var(--success)')}
+        ${barra('Não realizam',      'circle-x',     escrNao, pctNao, 'var(--destructive)')}
 
-        <div class="secao-titulo">Informações de Cadastro</div>
+        <div class="secao-titulo">Informações de cadastro</div>
         <div class="card-texto verde">
-            ${p.informacoes_adicionais || '<i style="opacity:.6">Nenhuma informação adicional cadastrada para esta comunidade.</i>'}
+            ${p.informacoes_adicionais ? esc(p.informacoes_adicionais) : '<span class="vazio">Nenhuma informação adicional cadastrada para esta comunidade.</span>'}
         </div>
 
-        <div class="secao-titulo">Nota Técnica de Campo</div>
+        <div class="secao-titulo">Nota técnica de campo</div>
         <div class="card-texto neutro">
-            <span class="nota-label">Observação do Técnico</span>
-            ${p.observacoes || '<i style="opacity:.6">Nenhuma observação registrada pelo técnico de campo.</i>'}
+            <span class="nota-label">Observação do técnico</span>
+            ${p.observacoes ? esc(p.observacoes) : '<span class="vazio">Nenhuma observação registrada pelo técnico de campo.</span>'}
         </div>
 
     </div>`;
+
+    renderizarIcones();
 }
 
 // ─── BUSCA ESPACIAL (Adaptada para abrir o Cluster) ───────────────────────────
@@ -267,8 +298,9 @@ L.Control.Geolocalizacao = L.Control.extend({
     onAdd: function(map) {
         const container = L.DomUtil.create('div', 'leaflet-bar');
         const botao     = L.DomUtil.create('button', 'botao-geo', container);
-        botao.innerHTML = '🎯';
-        botao.title     = 'Minha Localização';
+        botao.innerHTML = ico('locate-fixed');
+        botao.title     = 'Minha localização';
+        botao.setAttribute('aria-label', 'Minha localização');
         botao.onclick   = (e) => {
             L.DomEvent.stopPropagation(e);
             map.locate({ setView: true, maxZoom: 14 });
@@ -277,8 +309,10 @@ L.Control.Geolocalizacao = L.Control.extend({
     }
 });
 new L.Control.Geolocalizacao({ position: 'topleft' }).addTo(map);
+renderizarIcones();
 
 map.on('locationerror', () => alert("Não foi possível acessar sua geolocalização."));
 
 // ─── INICIALIZAÇÃO ────────────────────────────────────────────────────────────
+renderizarIcones();
 carregarDadosDaAPI();
