@@ -32,11 +32,11 @@ const limitesNordeste = L.latLngBounds(
     L.latLng(LIMITES.norte, LIMITES.leste)
 );
 
-// Vista inicial: semiárido pernambucano (Sertão, Agreste e São Francisco).
+// Vista inicial: região de Petrolina (PE), com Juazeiro (BA) do outro lado do São Francisco.
 // [sul, oeste] e [norte, leste]. Ajuste aqui se quiser enquadrar mais ou menos área.
 const VISTA_INICIAL = L.latLngBounds(
-    L.latLng(-9.5, -41.4),
-    L.latLng(-7.3, -36.0)
+    L.latLng(-9.70, -40.90),
+    L.latLng(-9.10, -40.10)
 );
 
 const map = L.map('map', {
@@ -439,18 +439,50 @@ new L.Control.FullScreen({
 }).addTo(map);
 map.on('enterFullscreen exitFullscreen', () => setTimeout(() => map.invalidateSize(), 200));
 
-// Hash na URL (#zoom/lat/lng). O parser original usa parseInt no zoom e perderia
-// os zooms quebrados (zoomSnap 0,25); aqui trocamos por parseFloat.
-L.Hash.prototype.parseHash = function (hash) {
-    if (hash.indexOf('#') === 0) hash = hash.substr(1);
-    const args = hash.split('/');
-    if (args.length !== 3) return false;
-    const zoom = parseFloat(args[0]), lat = parseFloat(args[1]), lng = parseFloat(args[2]);
-    if (isNaN(zoom) || isNaN(lat) || isNaN(lng)) return false;
-    return { center: new L.LatLng(lat, lng), zoom: zoom };
-};
-new L.Hash(map); // depois do fitBounds inicial: se a URL tiver hash, ele vence a vista inicial
+// Hash na URL (#zoom/lat/lng): o endereço guarda a vista e dá para compartilhar.
+// Implementação própria (sem plugin): lê o hash ao abrir e regrava a cada movimento.
+// Também guarda a última vista no navegador (localStorage): ao abrir sem hash na URL,
+// o mapa volta onde o usuário parou; só na primeira visita usa a VISTA_INICIAL.
+(function configurarHash() {
+    const CHAVE_VISTA = 'caprinusig:ultima-vista';
+    let aplicando = false;
 
+    const lerSalvo = () => { try { return localStorage.getItem(CHAVE_VISTA) || ''; } catch (e) { return ''; } };
+    const salvar   = (h) => { try { localStorage.setItem(CHAVE_VISTA, h); } catch (e) { /* storage bloqueado */ } };
+
+    function ler(hash) {
+        const p = hash.replace(/^#/, '').split('/');
+        if (p.length !== 3) return null;
+        const zoom = parseFloat(p[0]), lat = parseFloat(p[1]), lng = parseFloat(p[2]);
+        if ([zoom, lat, lng].some(isNaN) || Math.abs(lat) > 90 || Math.abs(lng) > 180) return null;
+        return { zoom: zoom, center: L.latLng(lat, lng) };
+    }
+
+    function gravar() {
+        if (aplicando) return;
+        const c = map.getCenter(), z = map.getZoom();
+        const casas = z >= 14 ? 5 : z >= 10 ? 4 : 3;
+        const hash = `#${z}/${c.lat.toFixed(casas)}/${c.lng.toFixed(casas)}`;
+        salvar(hash);
+        if (hash === location.hash) return;
+        try { history.replaceState(null, '', hash); } catch (e) { location.hash = hash; }
+    }
+
+    function aplicar(hash) {
+        const v = ler(typeof hash === 'string' ? hash : location.hash);
+        if (!v) return false;
+        aplicando = true;
+        map.setView(v.center, v.zoom, { animate: false });
+        aplicando = false;
+        return true;
+    }
+
+    map.on('moveend', gravar);
+    window.addEventListener('hashchange', () => aplicar());
+    // Prioridade ao abrir: 1) hash da URL  2) última vista salva  3) VISTA_INICIAL
+    if (!aplicar(location.hash)) aplicar(lerSalvo());
+    gravar();
+})();
 
 map.on('locationerror', () => alert("Não foi possível acessar sua geolocalização."));
 
