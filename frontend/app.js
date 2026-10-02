@@ -430,7 +430,7 @@ new L.Control.Coordenadas({ position: 'bottomleft' }).addTo(map);
 
 // Tela cheia: usa a página toda (o painel continua visível). Se o navegador não
 // suportar a API (iPhone), o plugin usa tela cheia simulada via CSS.
-L.control.fullscreen({
+new L.Control.FullScreen({
     position:            'topright',
     title:               'Tela cheia',
     titleCancel:         'Sair da tela cheia',
