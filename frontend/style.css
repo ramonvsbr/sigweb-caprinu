@@ -57,6 +57,7 @@
 
 /* ─── RESET / BASE ───────────────────────────────────────── */
 *, *::before, *::after { box-sizing: border-box; }
+html, body { height: 100%; }
 html {
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
@@ -65,7 +66,8 @@ body {
     margin: 0; padding: 0;
     font-family: var(--font-body);
     font-feature-settings: "rlig" 1, "calt" 1;
-    display: flex; height: 100vh; overflow: hidden;
+    display: flex; height: 100vh; height: 100dvh; overflow: hidden;
+    position: fixed; inset: 0;
     background: var(--footer-darker);
     color: var(--foreground);
 }
@@ -92,7 +94,8 @@ a:focus-visible {
 /* ─── PAINEL LATERAL ─────────────────────────────────────── */
 #painel-lateral {
     width: var(--sidebar-w);
-    height: 100%;
+    height: 100vh; height: 100dvh;
+    flex-shrink: 0;
     background: var(--background);
     border-left: 1px solid var(--border);
     box-shadow: -12px 0 40px oklch(0.26 0.12 264 / 0.14);
@@ -106,6 +109,7 @@ a:focus-visible {
 #painel-lateral.colapsado {
     transform: translateX(var(--sidebar-w));
     position: absolute; right: 0;
+    box-shadow: none;
 }
 
 /* ─── TOPO DO PAINEL ─────────────────────────────────────── */
@@ -410,7 +414,7 @@ body:has(#painel-lateral.colapsado) .botao-toggle-painel { right: 12px; }
 /* ─── FOOTER DO PAINEL ───────────────────────────────────── */
 .painel-footer {
     flex-shrink: 0;
-    padding: 14px 28px;
+    padding: 14px 28px calc(14px + env(safe-area-inset-bottom, 0px));
     border-top: 1px solid var(--border);
     display: flex; align-items: center; justify-content: space-between;
     background: var(--card);
@@ -445,6 +449,63 @@ body:has(#painel-lateral.colapsado) .botao-toggle-painel { right: 12px; }
     font-weight: 600;
 }
 
+/* ─── DESENHO E MEDIÇÃO (Leaflet-Geoman) ─────────────────── */
+.leaflet-pm-toolbar .leaflet-buttons-control-button { background-color: var(--card); }
+.leaflet-pm-toolbar .leaflet-buttons-control-button:hover { background-color: var(--accent); }
+.leaflet-pm-toolbar .button-container.active .leaflet-buttons-control-button { background-color: var(--accent); }
+.leaflet-pm-toolbar .leaflet-pm-actions-container a.leaflet-pm-action {
+    font-family: var(--font-body);
+    background-color: var(--secondary);
+    color: var(--primary-foreground);
+}
+.leaflet-pm-toolbar .leaflet-pm-actions-container a.leaflet-pm-action:hover { background-color: var(--primary); }
+.leaflet-tooltip.medida-tooltip {
+    font-family: var(--font-body);
+    font-size: 12px;
+    line-height: 1.4;
+    color: var(--foreground);
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    box-shadow: var(--shadow-sm);
+    padding: 4px 8px;
+    white-space: nowrap;
+}
+
+/* ─── CAMADAS, ESCALA, COORDENADAS E TELA CHEIA ─────────── */
+/* desce os controles do canto superior direito para não cobrir o botão do painel */
+.leaflet-top.leaflet-right { margin-top: 56px; }
+.leaflet-control-layers {
+    font-family: var(--font-body);
+    color: var(--foreground);
+    background: var(--card);
+    border: 1px solid var(--border) !important;
+    box-shadow: var(--shadow-md) !important;
+    border-radius: var(--radius-md) !important;
+}
+.leaflet-control-layers-expanded { padding: 8px 12px; }
+.leaflet-control-layers-selector { accent-color: var(--primary); }
+.leaflet-control-scale-line {
+    font-family: var(--font-body);
+    font-size: 11px;
+    color: var(--foreground);
+    background: color-mix(in srgb, var(--card) 85%, transparent);
+    border-color: var(--secondary);
+}
+.controle-coordenadas {
+    font-family: var(--font-body);
+    font-size: 11px;
+    font-variant-numeric: tabular-nums;
+    color: var(--foreground);
+    background: color-mix(in srgb, var(--card) 85%, transparent);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 2px 8px;
+    white-space: nowrap;
+}
+.leaflet-bar a.leaflet-fullscreen-icon { background-color: var(--card); }
+.leaflet-bar a.leaflet-fullscreen-icon:hover { background-color: var(--accent); }
+
 /* ─── BUSCA (leaflet-search) ─────────────────────────────── */
 .leaflet-control-search .search-tooltip {
     border: 1px solid var(--border);
@@ -467,6 +528,24 @@ body:has(#painel-lateral.colapsado) .botao-toggle-painel { right: 12px; }
 @keyframes fadeInUp {
     from { opacity: 0; transform: translateY(10px); }
     to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ─── CELULAR ────────────────────────────────────────────── */
+/* No celular o painel sobrepõe o mapa por completo (100% da largura), do topo
+   ao fim da tela. No desktop ele divide a tela com o mapa.
+   Aberto, o botão de abrir some: o fechar fica no painel. */
+@media (max-width: 768px) {
+    :root { --sidebar-w: 100vw; }
+
+    #painel-lateral,
+    #painel-lateral.colapsado {
+        position: fixed;
+        top: 0; right: 0; bottom: 0;
+    }
+    body:has(#painel-lateral:not(.colapsado)) .botao-toggle-painel { display: none; }
+    .topo-painel    { padding: 24px 20px 20px; }
+    .conteudo-painel { padding: 20px; }
+    .painel-footer  { padding-left: 20px; padding-right: 20px; }
 }
 
 @media (prefers-reduced-motion: reduce) {

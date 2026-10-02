@@ -19,25 +19,51 @@ function esc(valor) {
 }
 
 // ─── MAPA ─────────────────────────────────────────────────────────────────────
+// Área navegável do mapa: Brasil inteiro, com uma pequena margem.
+// O usuário não consegue arrastar para fora deste retângulo (graus decimais).
+const LIMITES = {
+    sul:   -35.0,   // extremo sul do Brasil: ~-33,75
+    norte:   6.0,   // extremo norte: ~5,27
+    oeste: -75.0,   // extremo oeste: ~-73,99
+    leste: -28.0,   // extremo leste (Fernando de Noronha): ~-28,85
+};
 const limitesNordeste = L.latLngBounds(
-    L.latLng(-18.5, -49.0),
-    L.latLng(-1.0,  -34.5)
+    L.latLng(LIMITES.sul,   LIMITES.oeste),
+    L.latLng(LIMITES.norte, LIMITES.leste)
+);
+
+// Vista inicial: semiárido pernambucano (Sertão, Agreste e São Francisco).
+// [sul, oeste] e [norte, leste]. Ajuste aqui se quiser enquadrar mais ou menos área.
+const VISTA_INICIAL = L.latLngBounds(
+    L.latLng(-9.5, -41.4),
+    L.latLng(-7.3, -36.0)
 );
 
 const map = L.map('map', {
-    center: [-8.7214, -39.1164],
-    zoom: 7.2,
+    zoomSnap: 0.25,
     maxZoom: 18,
-    minZoom: 5.5,
+    minZoom: 4,
     maxBounds: limitesNordeste,
     maxBoundsViscosity: 1.0,
     zoomControl: false,
 });
 
-// Tile Layer — OpenStreetMap (Gratuito, sem necessidade de API Key)
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+map.fitBounds(VISTA_INICIAL, { padding: [20, 20] });
+
+// Mapas base: ruas (OpenStreetMap) e satélite (Esri World Imagery), ambos sem API Key.
+const mapaRuas = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     maxZoom: 19,
     attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+}).addTo(map);
+
+const mapaSatelite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+    maxZoom: 19,
+    attribution: 'Tiles © Esri — Source: Esri, Maxar, Earthstar Geographics, and the GIS User Community'
+});
+
+L.control.layers({ 'Ruas': mapaRuas, 'Satélite': mapaSatelite }, null, {
+    position: 'topright',
+    collapsed: true,
 }).addTo(map);
 
 // Controles de zoom posicionados à esquerda
@@ -51,6 +77,7 @@ let dadosGlobaisGeoJson = null;
 // ─── TOGGLE DO PAINEL ─────────────────────────────────────────────────────────
 function togglePainel() {
     document.getElementById('painel-lateral').classList.toggle('colapsado');
+    // No desktop o mapa muda de largura; reajusta depois da animação do painel.
     setTimeout(() => map.invalidateSize(), 420);
 }
 
@@ -156,6 +183,7 @@ function renderizarCamadaEspacial(dadosGeo) {
                 weight:      1.5,
                 opacity:     0.8,
                 fillOpacity: 0.4,
+                pmIgnore:    true, // o Geoman não edita, move nem apaga as comunidades
             });
         },
         onEachFeature: function (feature, layer) {
@@ -163,6 +191,8 @@ function renderizarCamadaEspacial(dadosGeo) {
 
             layer.on({
                 click: (e) => {
+                    // Desenhando/editando com o Geoman: deixa o clique chegar ao mapa.
+                    if (geomanAtivo()) return;
                     L.DomEvent.stopPropagation(e);
                     
                     const painel = document.getElementById('painel-lateral');
@@ -310,6 +340,117 @@ L.Control.Geolocalizacao = L.Control.extend({
 });
 new L.Control.Geolocalizacao({ position: 'topleft' }).addTo(map);
 renderizarIcones();
+
+// ─── DESENHO E MEDIÇÃO (Leaflet-Geoman + Turf.js) ─────────────────────────────
+// O Geoman (versão gratuita) desenha e edita linhas, polígonos e retângulos.
+// A medição não vem nele: calculamos com o Turf.js e mostramos num tooltip.
+map.pm.setLang('pt_br');
+map.pm.setGlobalOptions({
+    pathOptions: { color: PALETA.primary, weight: 3, fillOpacity: 0.15 },
+    templineStyle: { color: PALETA.primary },
+    hintlineStyle: { color: PALETA.primary, dashArray: [5, 5] },
+});
+map.pm.addControls({
+    position:         'topleft',
+    drawMarker:       false,
+    drawCircleMarker: false,
+    drawCircle:       true,
+    drawText:         false,
+    cutPolygon:       false,
+    rotateMode:       false,
+    drawPolyline:     true,
+    drawRectangle:    true,
+    drawPolygon:      true,
+    editMode:         true,
+    dragMode:         true,
+    removalMode:      true,
+});
+
+// true enquanto algum modo do Geoman está ligado (evita abrir o painel).
+function geomanAtivo() {
+    return map.pm.globalDrawModeEnabled()
+        || map.pm.globalEditModeEnabled()
+        || map.pm.globalDragModeEnabled()
+        || map.pm.globalRemovalModeEnabled();
+}
+
+const fmt = (n, casas = 2) => n.toLocaleString('pt-BR', { maximumFractionDigits: casas });
+
+function textoMedida(layer) {
+    if (layer instanceof L.Circle) { // círculo: raio em metros reais
+        const r  = layer.getRadius();
+        const m2 = Math.PI * r * r;
+        return `<b>Raio:</b> ${fmt(r / 1000)} km (${fmt(r, 0)} m)<br>`
+             + `<b>Área:</b> ${fmt(m2 / 10000)} ha (${fmt(m2, 0)} m²)`;
+    }
+    const gj = layer.toGeoJSON();
+    if (layer instanceof L.Polygon) { // inclui retângulo
+        const m2   = turf.area(gj);
+        const perm = turf.length(turf.polygonToLine(gj), { units: 'kilometers' });
+        return `<b>Área:</b> ${fmt(m2 / 10000)} ha (${fmt(m2, 0)} m²)<br>`
+             + `<b>Perímetro:</b> ${fmt(perm)} km`;
+    }
+    const km = turf.length(gj, { units: 'kilometers' });
+    return `<b>Distância:</b> ${fmt(km)} km (${fmt(km * 1000, 0)} m)`;
+}
+
+function atualizarMedida(layer) {
+    if (!layer.getTooltip()) return;
+    try { layer.setTooltipContent(textoMedida(layer)); } catch (e) { /* forma incompleta */ }
+}
+
+map.on('pm:create', ({ layer }) => {
+    if (!(layer instanceof L.Polyline) && !(layer instanceof L.Circle)) return; // polígono e retângulo também são Polyline
+    layer.bindTooltip(textoMedida(layer), {
+        permanent: true, direction: 'center', className: 'medida-tooltip',
+    });
+    ['pm:edit', 'pm:markerdrag', 'pm:dragend', 'pm:vertexadded', 'pm:vertexremoved']
+        .forEach((ev) => layer.on(ev, () => atualizarMedida(layer)));
+});
+
+// ─── ESCALA, COORDENADAS, TELA CHEIA E HASH NA URL ────────────────────────────
+// Escala em metros/km (sem milhas).
+L.control.scale({ position: 'bottomleft', metric: true, imperial: false }).addTo(map);
+
+// Coordenadas: seguem o cursor no desktop e, no celular, mostram o ponto tocado.
+L.Control.Coordenadas = L.Control.extend({
+    onAdd: function (mapa) {
+        const div = L.DomUtil.create('div', 'controle-coordenadas');
+        div.textContent = 'Lat — · Lng —';
+        const mostrar = (e) => {
+            const f = (n) => n.toLocaleString('pt-BR', { minimumFractionDigits: 5, maximumFractionDigits: 5 });
+            div.textContent = `Lat ${f(e.latlng.lat)} · Lng ${f(e.latlng.lng)}`;
+        };
+        mapa.on('mousemove', mostrar);
+        mapa.on('click', mostrar);
+        return div;
+    }
+});
+new L.Control.Coordenadas({ position: 'bottomleft' }).addTo(map);
+
+// Tela cheia: usa a página toda (o painel continua visível). Se o navegador não
+// suportar a API (iPhone), o plugin usa tela cheia simulada via CSS.
+L.control.fullscreen({
+    position:            'topright',
+    title:               'Tela cheia',
+    titleCancel:         'Sair da tela cheia',
+    forceSeparateButton: true,
+    fullscreenElement:   document.body,
+}).addTo(map);
+map.on('enterFullscreen exitFullscreen', () => setTimeout(() => map.invalidateSize(), 200));
+
+// Hash na URL (#zoom/lat/lng). O parser original usa parseInt no zoom e perderia
+// os zooms quebrados (zoomSnap 0,25); aqui trocamos por parseFloat.
+L.Hash.prototype.parseHash = function (hash) {
+    if (hash.indexOf('#') === 0) hash = hash.substr(1);
+    const args = hash.split('/');
+    if (args.length !== 3) return false;
+    const zoom = parseFloat(args[0]), lat = parseFloat(args[1]), lng = parseFloat(args[2]);
+    if (isNaN(zoom) || isNaN(lat) || isNaN(lng)) return false;
+    return { center: new L.LatLng(lat, lng), zoom: zoom };
+};
+new L.Hash(map); // depois do fitBounds inicial: se a URL tiver hash, ele vence a vista inicial
+
 
 map.on('locationerror', () => alert("Não foi possível acessar sua geolocalização."));
 
