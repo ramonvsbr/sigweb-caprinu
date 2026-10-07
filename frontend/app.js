@@ -18,6 +18,30 @@ function esc(valor) {
     ));
 }
 
+// Números inteiros no padrão brasileiro: 1250 -> 1.250
+const fmtInt = (n) => Number(n || 0).toLocaleString('pt-BR');
+const plural = (n, singular, pl) => (n === 1 ? singular : pl);
+
+// Esqueleto de carregamento: mesma estrutura da visão geral, em blocos cinza.
+function htmlEsqueleto() {
+    return `
+    <div class="conteudo-painel esqueleto" role="status" aria-busy="true">
+        <span class="sr-only">Carregando dados das comunidades…</span>
+        <div class="comunidade-header">
+            <div class="esq esq-pill"></div>
+            <div class="esq esq-titulo"></div>
+            <div class="esq esq-linha" style="width:45%"></div>
+        </div>
+        <div class="grid-kpi">
+            <div class="esq esq-card"></div><div class="esq esq-card"></div>
+            <div class="esq esq-card"></div><div class="esq esq-card"></div>
+        </div>
+        <div class="esq esq-linha" style="width:55%"></div>
+        <div class="esq esq-barra"></div>
+        <div class="esq esq-barra"></div>
+    </div>`;
+}
+
 // ─── MAPA ─────────────────────────────────────────────────────────────────────
 // Área navegável do mapa: Brasil inteiro, com uma pequena margem.
 // O usuário não consegue arrastar para fora deste retângulo (graus decimais).
@@ -73,6 +97,9 @@ L.control.zoom({ position: 'topleft' }).addTo(map);
 let camadaGeoJson       = null;
 let grupoCluster        = null; // Nova variável para gerenciar o agrupamento
 let dadosGlobaisGeoJson = null;
+let marcadorSelecionado = null; // círculo da comunidade aberta no painel
+let nomeSelecionado     = null; // guarda a seleção quando os círculos são redesenhados
+let legendaEl           = null;
 
 // ─── TOGGLE DO PAINEL ─────────────────────────────────────────────────────────
 function togglePainel() {
@@ -102,14 +129,7 @@ async function carregarDadosDaAPI() {
         if (dot) { dot.classList.remove('erro'); dot.classList.add('ok'); }
         document.getElementById('status-texto').textContent = 'API conectada · Dados em tempo real';
 
-        document.getElementById('conteudo-dinamico').innerHTML = `
-            <div class="placeholder-wrap fade-in">
-                <div class="placeholder-icon">${ico('mouse-pointer-click')}</div>
-                <p class="placeholder-texto">
-                    Clique em uma comunidade no mapa<br>para ver o relatório.
-                </p>
-            </div>
-        `;
+        mostrarResumoGeral();
     } catch (erro) {
         console.error("Erro na API:", erro);
         if (dot) { dot.classList.remove('ok'); dot.classList.add('erro'); }
@@ -158,8 +178,36 @@ const CORES_FILTRO = {
     criacao_intensiva:      { fill: PALETA.destructive, stroke: PALETA.destructive }
 };
 
+// Textos de cada métrica (tooltip e legenda).
+const METRICAS = {
+    qtd_ovinos:             { rotulo: 'ovinos',       titulo: 'Ovinos por comunidade' },
+    qtd_caprinos:           { rotulo: 'caprinos',     titulo: 'Caprinos por comunidade' },
+    total_produtores:       { rotulo: 'produtores',   titulo: 'Produtores por comunidade' },
+    criacao_extensiva:      { rotulo: 'extensiva',    titulo: 'Criação extensiva' },
+    criacao_semi_extensiva: { rotulo: 'semi-extensiva', titulo: 'Criação semi-extensiva' },
+    criacao_intensiva:      { rotulo: 'intensiva',    titulo: 'Criação intensiva' },
+};
+
+// ─── SELEÇÃO DO MARCADOR ──────────────────────────────────────────────────────
+function aplicarEstilo(layer) {
+    if (!layer._estilos) return;
+    layer.setStyle(layer === marcadorSelecionado ? layer._estilos.sel : layer._estilos.base);
+}
+
+function selecionarMarcador(layer) {
+    const anterior = marcadorSelecionado;
+    marcadorSelecionado = layer;
+    nomeSelecionado = layer ? layer.feature.properties.nome : null;
+    if (anterior && anterior !== layer) aplicarEstilo(anterior);
+    if (layer) {
+        aplicarEstilo(layer);
+        try { layer.bringToFront(); } catch (e) { /* fora do mapa (agrupado) */ }
+    }
+}
+
 function renderizarCamadaEspacial(dadosGeo) {
     if (grupoCluster) map.removeLayer(grupoCluster);
+    marcadorSelecionado = null; // os círculos antigos saem; a seleção é refeita por nome abaixo
 
     const filtro = document.getElementById('filtro-dados').value;
     const cores  = CORES_FILTRO[filtro] || CORES_FILTRO.qtd_ovinos;
@@ -176,7 +224,7 @@ function renderizarCamadaEspacial(dadosGeo) {
             const valor = feature.properties[filtro] || 0;
             const raio  = calcularRaio(valor, filtro);
             
-            return L.circleMarker(latlng, {
+            const marcador = L.circleMarker(latlng, {
                 radius:      raio,
                 fillColor:   cores.fill,
                 color:       cores.stroke,
@@ -185,9 +233,29 @@ function renderizarCamadaEspacial(dadosGeo) {
                 fillOpacity: 0.4,
                 pmIgnore:    true, // o Geoman não edita, move nem apaga as comunidades
             });
+            marcador._estilos = {
+                base:  { weight: 1.5, opacity: 0.8, fillOpacity: 0.4 },
+                hover: { weight: 2.5, opacity: 0.8, fillOpacity: 0.7 },
+                sel:   { weight: 4,   opacity: 1,   fillOpacity: 0.8 },
+            };
+            return marcador;
         },
         onEachFeature: function (feature, layer) {
             feature.properties.title = feature.properties.nome;
+
+            // Tooltip no hover: nome e valor da métrica atual.
+            const valorMetrica = feature.properties[filtro] || 0;
+            const rotuloMetrica = (METRICAS[filtro] || {}).rotulo || '';
+            layer.bindTooltip(
+                `<strong>${esc(feature.properties.nome)}</strong><span>${fmtInt(valorMetrica)} ${rotuloMetrica}</span>`,
+                { direction: 'top', offset: [0, -layer.getRadius()], className: 'tooltip-comunidade' }
+            );
+
+            // Redesenho (troca de métrica): mantém a comunidade aberta destacada.
+            if (feature.properties.nome === nomeSelecionado) {
+                marcadorSelecionado = layer;
+                aplicarEstilo(layer);
+            }
 
             layer.on({
                 click: (e) => {
@@ -197,16 +265,118 @@ function renderizarCamadaEspacial(dadosGeo) {
                     
                     const painel = document.getElementById('painel-lateral');
                     if (painel.classList.contains('colapsado')) togglePainel();
+                    selecionarMarcador(layer);
                     exibirDadosNoPainel(feature.properties);
                 },
-                mouseover: function () { this.setStyle({ fillOpacity: 0.7, weight: 2.5 }); },
-                mouseout:  function () { this.setStyle({ fillOpacity: 0.4, weight: 1.5 }); },
+                mouseover: () => { if (layer !== marcadorSelecionado) layer.setStyle(layer._estilos.hover); },
+                mouseout:  () => aplicarEstilo(layer),
             });
         }
     });
 
     grupoCluster.addLayer(camadaGeoJson);
     map.addLayer(grupoCluster);
+    atualizarLegenda(dadosGeo, filtro, cores);
+}
+
+// ─── LEGENDA ──────────────────────────────────────────────────────────────────
+// Mostra a métrica atual, tamanhos de exemplo (menor, mediano e maior valor dos
+// dados, com o mesmo raio dos círculos do mapa) e o que significam os clusters.
+function criarLegenda() {
+    const controle = L.control({ position: 'bottomright' });
+    controle.onAdd = () => {
+        legendaEl = L.DomUtil.create('div', 'legenda-mapa');
+        L.DomEvent.disableClickPropagation(legendaEl);
+        L.DomEvent.disableScrollPropagation(legendaEl);
+        return legendaEl;
+    };
+    controle.addTo(map);
+}
+
+function atualizarLegenda(dadosGeo, filtro, cores) {
+    if (!legendaEl) return;
+    const aberta = legendaEl.querySelector('details')
+        ? legendaEl.querySelector('details').open
+        : !window.matchMedia('(max-width: 768px)').matches; // no celular começa fechada
+
+    const valores = (dadosGeo.features || [])
+        .map((f) => Number(f.properties[filtro]) || 0)
+        .filter((v) => v > 0)
+        .sort((a, b) => a - b);
+
+    const exemplos = valores.length
+        ? [...new Set([valores[valores.length - 1], valores[Math.floor((valores.length - 1) / 2)], valores[0]])]
+        : [];
+
+    const linhas = exemplos.map((v) => {
+        const d = Math.round(calcularRaio(v, filtro) * 2);
+        return `<li>
+            <span class="legenda-bolha-box"><span class="legenda-bolha" style="width:${d}px;height:${d}px;"></span></span>
+            <span>${fmtInt(v)}</span>
+        </li>`;
+    }).join('');
+
+    const titulo = (METRICAS[filtro] || {}).titulo || 'Métrica';
+    legendaEl.innerHTML = `
+        <details${aberta ? ' open' : ''}>
+            <summary>Legenda</summary>
+            <div class="legenda-corpo" style="--fill:${cores.fill}; --stroke:${cores.stroke};">
+                <p class="legenda-titulo">${titulo}</p>
+                ${linhas ? `<ul class="legenda-lista">${linhas}</ul>
+                <p class="legenda-nota">Quanto maior o círculo, maior a quantidade.</p>`
+                         : '<p class="legenda-nota">Nenhuma comunidade com esse dado.</p>'}
+                <div class="legenda-cluster">
+                    <span class="legenda-cluster-dot">3</span>
+                    <span>Comunidades próximas ficam agrupadas. Clique para ampliar.</span>
+                </div>
+            </div>
+        </details>`;
+}
+
+// ─── VISÃO GERAL (painel sem comunidade aberta) ───────────────────────────────
+function mostrarResumoGeral() {
+    selecionarMarcador(null);
+
+    const feats = (dadosGlobaisGeoJson && dadosGlobaisGeoJson.features) || [];
+    const soma = (campo) => feats.reduce((s, f) => s + (Number(f.properties[campo]) || 0), 0);
+    const n = feats.length;
+
+    document.getElementById('conteudo-dinamico').innerHTML = `
+    <div class="conteudo-painel fade-in">
+        <div class="comunidade-header">
+            <div class="badge-regiao">${ico('map-pin')} Semiárido Nordestino</div>
+            <h2 class="titulo-comunidade">Visão geral</h2>
+            <div class="comunidade-meta">
+                <span class="meta-chip">${ico('database')} ${fmtInt(n)} ${plural(n, 'comunidade cadastrada', 'comunidades cadastradas')}</span>
+            </div>
+        </div>
+
+        <div class="grid-kpi">
+            <div class="card-kpi" style="--acc: var(--success);">
+                <div class="card-kpi-label">${ico('map-pin')} Comunidades</div>
+                <div class="card-kpi-value">${fmtInt(n)}</div>
+            </div>
+            <div class="card-kpi" style="--acc: var(--warning);">
+                <div class="card-kpi-label">${ico('users')} Produtores</div>
+                <div class="card-kpi-value">${fmtInt(soma('total_produtores'))}</div>
+            </div>
+            <div class="card-kpi" style="--acc: var(--primary);">
+                <div class="card-kpi-label">${ico('paw-print')} Caprinos</div>
+                <div class="card-kpi-value">${fmtInt(soma('qtd_caprinos'))}<span class="card-kpi-unit">cab.</span></div>
+            </div>
+            <div class="card-kpi" style="--acc: var(--secondary);">
+                <div class="card-kpi-label">${ico('paw-print')} Ovinos</div>
+                <div class="card-kpi-value">${fmtInt(soma('qtd_ovinos'))}<span class="card-kpi-unit">cab.</span></div>
+            </div>
+        </div>
+
+        <div class="card-texto verde dica">
+            ${ico('mouse-pointer-click')}
+            <span>Clique em uma comunidade no mapa para ver o relatório dela.</span>
+        </div>
+    </div>`;
+
+    renderizarIcones();
 }
 
 // ─── EXIBIÇÃO NO PAINEL ───────────────────────────────────────────────────────
@@ -234,7 +404,7 @@ function exibirDadosNoPainel(p) {
         <div class="item-barra">
             <div class="item-barra-header">
                 <span class="item-barra-nome">${ico(icone)} ${nome}</span>
-                <span class="item-barra-valor">${valor} <span class="item-barra-pct">(${pct}%)</span></span>
+                <span class="item-barra-valor">${fmtInt(valor)} <span class="item-barra-pct">(${pct}%)</span></span>
             </div>
             <div class="track">
                 <div class="fill" style="width:${pct}%; --cor:${cor};"></div>
@@ -246,6 +416,7 @@ function exibirDadosNoPainel(p) {
     <div class="conteudo-painel fade-in">
 
         <div class="comunidade-header">
+            <button type="button" class="btn-voltar" onclick="mostrarResumoGeral()">${ico('arrow-left')} Visão geral</button>
             <div class="badge-regiao">${ico('map-pin')} Semiárido Nordestino</div>
             <h2 class="titulo-comunidade">${esc(p.nome)}</h2>
             <div class="comunidade-meta">
@@ -258,17 +429,17 @@ function exibirDadosNoPainel(p) {
             <div class="card-kpi card-kpi-full" style="--acc: var(--warning);">
                 <div class="card-kpi-accent"></div>
                 <div class="card-kpi-label">${ico('users')} Total de produtores</div>
-                <div class="card-kpi-value">${p.total_produtores || 0}</div>
+                <div class="card-kpi-value">${fmtInt(p.total_produtores)}</div>
             </div>
             <div class="card-kpi" style="--acc: var(--primary);">
                 <div class="card-kpi-accent"></div>
                 <div class="card-kpi-label">${ico('paw-print')} Caprinos</div>
-                <div class="card-kpi-value">${p.qtd_caprinos || 0}<span class="card-kpi-unit">cab.</span></div>
+                <div class="card-kpi-value">${fmtInt(p.qtd_caprinos)}<span class="card-kpi-unit">cab.</span></div>
             </div>
             <div class="card-kpi" style="--acc: var(--secondary);">
                 <div class="card-kpi-accent"></div>
                 <div class="card-kpi-label">${ico('paw-print')} Ovinos</div>
-                <div class="card-kpi-value">${p.qtd_ovinos || 0}<span class="card-kpi-unit">cab.</span></div>
+                <div class="card-kpi-value">${fmtInt(p.qtd_ovinos)}<span class="card-kpi-unit">cab.</span></div>
             </div>
         </div>
 
@@ -488,4 +659,6 @@ map.on('locationerror', () => alert("Não foi possível acessar sua geolocaliza�
 
 // ─── INICIALIZAÇÃO ────────────────────────────────────────────────────────────
 renderizarIcones();
+criarLegenda();
+document.getElementById('conteudo-dinamico').innerHTML = htmlEsqueleto();
 carregarDadosDaAPI();
