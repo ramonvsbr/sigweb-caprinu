@@ -240,6 +240,10 @@ body:has(#painel-lateral.colapsado) .botao-toggle-painel { right: 12px; }
 
 /* ─── CONTEÚDO PAINEL ────────────────────────────────────── */
 .conteudo-painel { padding: 28px; }
+/* #conteudo-dinamico e o bloco que o app.js coloca dentro dele usam a mesma classe.
+   Sem isto o espaço lateral dobra (56 px) e os cards de KPI ficam estreitos,
+   cortando rótulos como "Comunidades". O espaço lateral fica só no bloco interno. */
+#conteudo-dinamico.conteudo-painel { padding-left: 0; padding-right: 0; }
 
 .placeholder-wrap {
     display: flex; flex-direction: column; align-items: center;
