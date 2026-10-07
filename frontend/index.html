@@ -50,6 +50,17 @@
                 <i data-lucide="chevron-down"></i>
             </div>
 
+            <!-- VISUALIZAÇÃO: círculos ou mapa de calor -->
+            <span class="filtro-label vis-rotulo" id="rotulo-visualizacao">Visualização</span>
+            <div class="visualizacao" role="group" aria-labelledby="rotulo-visualizacao">
+                <button type="button" class="vis-btn ativo" data-modo="circulos" aria-pressed="true">
+                    <i data-lucide="circle-dot"></i> Círculos
+                </button>
+                <button type="button" class="vis-btn" data-modo="calor" aria-pressed="false">
+                    <i data-lucide="flame"></i> Calor
+                </button>
+            </div>
+
             <!-- FILTROS E EXPORTAÇÃO -->
             <details class="filtros" id="filtros">
                 <summary>
@@ -131,6 +142,8 @@
     </div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
+    <script src="https://unpkg.com/leaflet-easyprint@2.1.9/dist/bundle.js"></script>
     <script src="https://unpkg.com/leaflet-search@3.0.9/dist/leaflet-search.src.js"></script>
     <script src="https://unpkg.com/leaflet.markercluster@1.4.1/dist/leaflet.markercluster.js"></script>
     <script src="https://unpkg.com/@geoman-io/leaflet-geoman-free@2.17.0/dist/leaflet-geoman.min.js"></script>

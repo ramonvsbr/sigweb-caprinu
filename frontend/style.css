@@ -754,3 +754,33 @@ body:has(#painel-lateral.colapsado) .botao-toggle-painel { right: 12px; }
 @media (prefers-reduced-motion: reduce) {
     .filtros-chevron { transition: none; }
 }
+
+/* ─── VISUALIZAÇÃO (círculos / calor) ────────────────────── */
+.vis-rotulo { margin-top: 16px; }
+.visualizacao {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 4px;
+    padding: 3px;
+    border-radius: var(--radius-md);
+    background: rgba(255, 255, 255, 0.16);
+    border: 1px solid rgba(255, 255, 255, 0.24);
+}
+.vis-btn {
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+    padding: 7px 10px;
+    border: none; border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--primary-foreground);
+    font-size: 13px; font-weight: 600;
+    transition: background-color 0.15s ease, color 0.15s ease;
+}
+.vis-btn .lucide { width: 15px; height: 15px; }
+.vis-btn:hover:not(.ativo) { background: rgba(255, 255, 255, 0.14); }
+.vis-btn.ativo { background: var(--card); color: var(--primary); box-shadow: var(--shadow-sm); }
+.vis-btn:focus-visible { outline-color: var(--primary-foreground); }
+
+/* Legenda do mapa de calor */
+.legenda-gradiente { height: 10px; border-radius: 100px; margin: 4px 0 4px; }
+.legenda-gradiente-rotulos {
+    display: flex; justify-content: space-between;
+    font-size: 11px; color: var(--muted-foreground);
+}

@@ -74,18 +74,30 @@ const map = L.map('map', {
 
 map.fitBounds(VISTA_INICIAL, { padding: [20, 20] });
 
-// Mapas base: ruas (OpenStreetMap) e satélite (Esri World Imagery), ambos sem API Key.
+// Mapas base, todos sem API Key: claro e discreto (CARTO Positron, o padrão, para os
+// marcadores se destacarem), ruas (OpenStreetMap) e satélite (Esri World Imagery).
+// crossOrigin: o navegador só deixa o plugin de impressão "fotografar" o mapa
+// (imprimir e baixar imagem) se os tiles vierem liberados para isso.
+const mapaClaro = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+    subdomains: 'abcd',
+    maxZoom: 19,
+    crossOrigin: true,
+    attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors © <a href="https://carto.com/attributions">CARTO</a>'
+}).addTo(map);
+
 const mapaRuas = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     maxZoom: 19,
+    crossOrigin: true,
     attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-}).addTo(map);
+});
 
 const mapaSatelite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
     maxZoom: 19,
+    crossOrigin: true,
     attribution: 'Tiles © Esri — Source: Esri, Maxar, Earthstar Geographics, and the GIS User Community'
 });
 
-L.control.layers({ 'Ruas': mapaRuas, 'Satélite': mapaSatelite }, null, {
+L.control.layers({ 'Claro': mapaClaro, 'Ruas': mapaRuas, 'Satélite': mapaSatelite }, null, {
     position: 'topright',
     collapsed: true,
 }).addTo(map);
@@ -104,6 +116,8 @@ let controleBusca       = null; // controle de busca (refeito a cada redesenho)
 let dadosVisiveis       = { type: 'FeatureCollection', features: [] }; // comunidades que passam nos filtros
 const desenhos          = new Set(); // formas desenhadas pelo usuário (Geoman)
 let botaoExportarDesenhos = null;
+let modoVisualizacao    = 'circulos'; // 'circulos' ou 'calor'
+let camadaCalor         = null;       // camada do mapa de calor (leaflet.heat)
 
 // ─── TOGGLE DO PAINEL ─────────────────────────────────────────────────────────
 function togglePainel() {
@@ -276,6 +290,47 @@ function exportarCsv() {
 }
 document.getElementById('btn-exportar-csv').addEventListener('click', exportarCsv);
 
+// ─── VISUALIZAÇÃO: CÍRCULOS OU MAPA DE CALOR ──────────────────────────────────
+// No calor, o peso de cada comunidade é a métrica atual (raiz quadrada, para uma
+// comunidade muito grande não apagar as demais). As comunidades continuam no mapa
+// como pontos pequenos, para clicar, buscar e ver o tooltip.
+const GRADIENTE_CALOR = { 0.15: '#bfd4fb', 0.4: '#2d69de', 0.7: '#eab444', 1: '#d4302e' };
+
+document.querySelectorAll('.vis-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+        if (modoVisualizacao === btn.dataset.modo) return;
+        modoVisualizacao = btn.dataset.modo;
+        document.querySelectorAll('.vis-btn').forEach((b) => {
+            const ativo = b === btn;
+            b.classList.toggle('ativo', ativo);
+            b.setAttribute('aria-pressed', String(ativo));
+        });
+        if (dadosGlobaisGeoJson) renderizarCamadaEspacial(dadosGlobaisGeoJson);
+    });
+});
+
+function desenharCalor(dados, filtro) {
+    if (!L.heatLayer) return;
+    const valores = dados.features.map((f) => Number(f.properties[filtro]) || 0);
+    const maximo  = Math.max(0, ...valores);
+    if (!maximo) return;
+
+    const pontos = dados.features
+        .map((f, i) => ({ f, v: valores[i] }))
+        .filter(({ f, v }) => v > 0 && f.geometry && f.geometry.coordinates)
+        .map(({ f, v }) => [f.geometry.coordinates[1], f.geometry.coordinates[0], Math.sqrt(v / maximo)]);
+    if (!pontos.length) return;
+
+    camadaCalor = L.heatLayer(pontos, {
+        radius: 30, blur: 25, maxZoom: 11, minOpacity: 0.35, gradient: GRADIENTE_CALOR,
+    }).addTo(map);
+    // O canvas do calor fica atrás dos pontos e não captura cliques.
+    if (camadaCalor._canvas) {
+        camadaCalor._canvas.style.zIndex = '-1';
+        camadaCalor._canvas.style.pointerEvents = 'none';
+    }
+}
+
 // ─── CARGA DE DADOS ───────────────────────────────────────────────────────────
 async function carregarDadosDaAPI() {
     const dot = document.getElementById('status-dot');
@@ -370,6 +425,7 @@ function selecionarMarcador(layer) {
 
 function renderizarCamadaEspacial(dadosGeo) {
     if (grupoCluster) map.removeLayer(grupoCluster);
+    if (camadaCalor) { map.removeLayer(camadaCalor); camadaCalor = null; }
     marcadorSelecionado = null; // os círculos antigos saem; a seleção é refeita por nome abaixo
 
     const filtro = document.getElementById('filtro-dados').value;
@@ -381,27 +437,28 @@ function renderizarCamadaEspacial(dadosGeo) {
         spiderfyOnMaxZoom: true,
         showCoverageOnHover: false,
         zoomToBoundsOnClick: true,
-        maxClusterRadius: 45
+        maxClusterRadius: modoVisualizacao === 'calor' ? 1 : 45 // no calor, praticamente sem agrupar
     });
 
     camadaGeoJson = L.geoJSON(dados, {
         pointToLayer: function (feature, latlng) {
             const valor = feature.properties[filtro] || 0;
-            const raio  = calcularRaio(valor, filtro);
+            const calor = modoVisualizacao === 'calor';
+            const raio  = calor ? 5 : calcularRaio(valor, filtro);
             
             const marcador = L.circleMarker(latlng, {
                 radius:      raio,
-                fillColor:   cores.fill,
-                color:       cores.stroke,
+                fillColor:   calor ? '#ffffff' : cores.fill,
+                color:       calor ? PALETA.navyDark : cores.stroke,
                 weight:      1.5,
-                opacity:     0.8,
-                fillOpacity: 0.4,
+                opacity:     calor ? 1 : 0.8,
+                fillOpacity: calor ? 0.9 : 0.4,
                 pmIgnore:    true, // o Geoman não edita, move nem apaga as comunidades
             });
             marcador._estilos = {
-                base:  { weight: 1.5, opacity: 0.8, fillOpacity: 0.4 },
-                hover: { weight: 2.5, opacity: 0.8, fillOpacity: 0.7 },
-                sel:   { weight: 4,   opacity: 1,   fillOpacity: 0.8 },
+                base:  calor ? { weight: 1.5, opacity: 1, fillOpacity: 0.9 } : { weight: 1.5, opacity: 0.8, fillOpacity: 0.4 },
+                hover: calor ? { weight: 2.5, opacity: 1, fillOpacity: 1 }   : { weight: 2.5, opacity: 0.8, fillOpacity: 0.7 },
+                sel:   calor ? { weight: 4,   opacity: 1, fillOpacity: 1 }   : { weight: 4,   opacity: 1,   fillOpacity: 0.8 },
             };
             return marcador;
         },
@@ -441,6 +498,7 @@ function renderizarCamadaEspacial(dadosGeo) {
 
     grupoCluster.addLayer(camadaGeoJson);
     map.addLayer(grupoCluster);
+    if (modoVisualizacao === 'calor') desenharCalor(dados, filtro);
     atualizarLegenda(dados, filtro, cores);
     configurarBarraDeBusca(); // a busca precisa apontar para o grupo recém-criado
     atualizarInterfaceFiltros((dadosGeo.features || []).length, dados.features.length);
@@ -484,6 +542,24 @@ function atualizarLegenda(dadosGeo, filtro, cores) {
     }).join('');
 
     const titulo = (METRICAS[filtro] || {}).titulo || 'Métrica';
+
+    if (modoVisualizacao === 'calor') {
+        const degrade = Object.entries(GRADIENTE_CALOR).map(([p, c]) => `${c} ${Math.round(p * 100)}%`).join(', ');
+        legendaEl.innerHTML = `
+        <details${aberta ? ' open' : ''}>
+            <summary>Legenda</summary>
+            <div class="legenda-corpo">
+                <p class="legenda-titulo">Calor: ${titulo}</p>
+                ${valores.length
+                    ? `<div class="legenda-gradiente" style="background:linear-gradient(90deg, ${degrade});"></div>
+                       <div class="legenda-gradiente-rotulos"><span>menos</span><span>mais</span></div>
+                       <p class="legenda-nota">Quanto mais quente a cor, maior a concentração. Os pontos pequenos são as comunidades: clique para abrir.</p>`
+                    : '<p class="legenda-nota">Nenhuma comunidade com esse dado.</p>'}
+            </div>
+        </details>`;
+        return;
+    }
+
     legendaEl.innerHTML = `
         <details${aberta ? ' open' : ''}>
             <summary>Legenda</summary>
@@ -673,7 +749,7 @@ function configurarBarraDeBusca() {
 // ─── GEOLOCALIZAÇÃO ───────────────────────────────────────────────────────────
 L.Control.Geolocalizacao = L.Control.extend({
     onAdd: function(map) {
-        const container = L.DomUtil.create('div', 'leaflet-bar');
+        const container = L.DomUtil.create('div', 'leaflet-bar controle-ferramenta');
         const botao     = L.DomUtil.create('button', 'botao-geo', container);
         botao.innerHTML = ico('locate-fixed');
         botao.title     = 'Minha localização';
@@ -814,7 +890,7 @@ function atualizarBotaoExportarDesenhos() {
 
 L.Control.ExportarDesenhos = L.Control.extend({
     onAdd: function () {
-        const container = L.DomUtil.create('div', 'leaflet-bar');
+        const container = L.DomUtil.create('div', 'leaflet-bar controle-ferramenta');
         botaoExportarDesenhos = L.DomUtil.create('button', 'botao-geo', container);
         botaoExportarDesenhos.type = 'button';
         botaoExportarDesenhos.innerHTML = ico('download');
@@ -857,6 +933,38 @@ new L.Control.FullScreen({
     fullscreenElement:   document.body,
 }).addTo(map);
 map.on('enterFullscreen exitFullscreen', () => setTimeout(() => map.invalidateSize(), 200));
+
+// ─── IMPRIMIR E BAIXAR IMAGEM (leaflet-easyPrint) ─────────────────────────────
+// O plugin "fotografa" o mapa (com marcadores, calor e legenda) e abre a impressão
+// ou baixa um PNG. Os controles de navegação e de desenho ficam de fora; a escala,
+// a legenda e a atribuição do mapa base saem na imagem.
+if (L.easyPrint) {
+    const esconder = [
+        'leaflet-control-zoom', 'leaflet-pm-toolbar', 'leaflet-control-layers',
+        'leaflet-control-search', 'leaflet-control-fullscreen', 'leaflet-control-easyPrint',
+        'controle-ferramenta', 'controle-coordenadas',
+    ];
+    L.easyPrint({
+        title: 'Imprimir mapa',
+        position: 'topright',
+        sizeModes: ['Current', 'A4Landscape', 'A4Portrait'],
+        defaultSizeTitles: { Current: 'Tamanho da tela', A4Landscape: 'A4 paisagem', A4Portrait: 'A4 retrato' },
+        customWindowTitle: 'CaprinuSIG: mapa',
+        spinnerBgColor: PALETA.primary,
+        hideControlContainer: false,
+        hideClasses: esconder,
+    }).addTo(map);
+    L.easyPrint({
+        title: 'Baixar imagem do mapa (PNG)',
+        position: 'topright',
+        exportOnly: true,
+        sizeModes: ['Current'],
+        filename: nomeArquivo('mapa_caprinusig', 'png').replace(/\.png$/, ''),
+        spinnerBgColor: PALETA.primary,
+        hideControlContainer: false,
+        hideClasses: esconder,
+    }).addTo(map);
+}
 
 // Hash na URL (#zoom/lat/lng): o endereço guarda a vista e dá para compartilhar.
 // Implementação própria (sem plugin): lê o hash ao abrir e regrava a cada movimento.
