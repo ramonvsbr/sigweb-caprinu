@@ -100,6 +100,10 @@ let dadosGlobaisGeoJson = null;
 let marcadorSelecionado = null; // círculo da comunidade aberta no painel
 let nomeSelecionado     = null; // guarda a seleção quando os círculos são redesenhados
 let legendaEl           = null;
+let controleBusca       = null; // controle de busca (refeito a cada redesenho)
+let dadosVisiveis       = { type: 'FeatureCollection', features: [] }; // comunidades que passam nos filtros
+const desenhos          = new Set(); // formas desenhadas pelo usuário (Geoman)
+let botaoExportarDesenhos = null;
 
 // ─── TOGGLE DO PAINEL ─────────────────────────────────────────────────────────
 function togglePainel() {
@@ -113,6 +117,165 @@ document.getElementById('filtro-dados').addEventListener('change', () => {
     if (dadosGlobaisGeoJson) renderizarCamadaEspacial(dadosGlobaisGeoJson);
 });
 
+// ─── FILTROS (município, sistema de criação, escrituração) ────────────────────
+// Os filtros escolhem QUAIS comunidades aparecem; a "Métrica espacial" escolhe
+// COMO elas são desenhadas. Mapa, legenda, busca, visão geral e CSV usam só as
+// comunidades filtradas.
+const IDS_FILTROS = ['filtro-municipio', 'filtro-sistema', 'filtro-escrituracao'];
+const CAMPO_SISTEMA = {
+    extensiva:      'criacao_extensiva',
+    semi_extensiva: 'criacao_semi_extensiva',
+    intensiva:      'criacao_intensiva',
+};
+
+function lerFiltros() {
+    return {
+        municipio:    document.getElementById('filtro-municipio').value,
+        sistema:      document.getElementById('filtro-sistema').value,
+        escrituracao: document.getElementById('filtro-escrituracao').value,
+    };
+}
+const filtrosAtivos = () => Object.values(lerFiltros()).filter(Boolean).length;
+
+function passaNosFiltros(p, f) {
+    if (f.municipio && String(p.municipio ?? '').trim() !== f.municipio) return false;
+
+    if (f.sistema) {
+        // Sistema predominante = o de maior valor na comunidade (empate conta para os dois).
+        const maior = Math.max(...Object.values(CAMPO_SISTEMA).map((c) => Number(p[c]) || 0));
+        if (maior <= 0 || (Number(p[CAMPO_SISTEMA[f.sistema]]) || 0) !== maior) return false;
+    }
+
+    if (f.escrituracao) {
+        const sim = Number(p.escrituracao_sim) || 0;
+        if (f.escrituracao === 'sem' && sim > 0)   return false; // alguém registra
+        if (f.escrituracao === 'com' && sim === 0) return false; // ninguém registra
+    }
+    return true;
+}
+
+function filtrar(dadosGeo) {
+    const f = lerFiltros();
+    return {
+        type: 'FeatureCollection',
+        features: (dadosGeo.features || []).filter((ft) => passaNosFiltros(ft.properties || {}, f)),
+    };
+}
+
+// Lista de municípios vem dos próprios dados. Sem a propriedade "municipio" na
+// API, o campo fica escondido.
+function prepararFiltros(dadosGeo) {
+    const nomes = [...new Set((dadosGeo.features || [])
+        .map((f) => String((f.properties || {}).municipio ?? '').trim())
+        .filter(Boolean))]
+        .sort((x, y) => x.localeCompare(y, 'pt-BR'));
+
+    document.getElementById('campo-municipio').hidden = nomes.length === 0;
+    document.getElementById('filtro-municipio').innerHTML =
+        '<option value="">Todos</option>' +
+        nomes.map((n) => `<option value="${esc(n)}">${esc(n)}</option>`).join('');
+}
+
+function atualizarInterfaceFiltros(total, visiveis) {
+    const n = filtrosAtivos();
+    const badge = document.getElementById('filtros-badge');
+    badge.hidden = n === 0;
+    badge.textContent = n;
+    document.getElementById('btn-limpar-filtros').hidden = n === 0;
+    document.getElementById('filtros-resultado').textContent =
+        `${fmtInt(visiveis)} de ${fmtInt(total)} ${plural(total, 'comunidade', 'comunidades')}`;
+
+    const btn = document.getElementById('btn-exportar-csv');
+    btn.disabled = visiveis === 0;
+    btn.querySelector('span').textContent = `Baixar CSV (${fmtInt(visiveis)})`;
+}
+
+function enquadrarVisiveis() {
+    const pontos = dadosVisiveis.features
+        .filter((f) => f.geometry && f.geometry.coordinates)
+        .map((f) => L.latLng(f.geometry.coordinates[1], f.geometry.coordinates[0]));
+    if (pontos.length) map.fitBounds(L.latLngBounds(pontos), { padding: [40, 40], maxZoom: 13 });
+}
+
+function aoMudarFiltros(ajustarVista) {
+    if (!dadosGlobaisGeoJson) return;
+    renderizarCamadaEspacial(dadosGlobaisGeoJson);
+    // Sem comunidade aberta (ou a aberta saiu do filtro): volta à visão geral já recalculada.
+    if (!marcadorSelecionado) mostrarResumoGeral();
+    if (ajustarVista && filtrosAtivos()) enquadrarVisiveis();
+}
+
+IDS_FILTROS.forEach((id) =>
+    document.getElementById(id).addEventListener('change', () => aoMudarFiltros(true)));
+
+document.getElementById('btn-limpar-filtros').addEventListener('click', () => {
+    IDS_FILTROS.forEach((id) => { document.getElementById(id).value = ''; });
+    aoMudarFiltros(false);
+});
+
+// ─── EXPORTAÇÃO ───────────────────────────────────────────────────────────────
+function nomeArquivo(base, extensao) {
+    const d = new Date(), p = (n) => String(n).padStart(2, '0'); // data local, não UTC
+    return `${base}_${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}.${extensao}`;
+}
+
+function baixarArquivo(conteudo, nome, tipo) {
+    const url = URL.createObjectURL(new Blob([conteudo], { type: tipo }));
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = nome;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+// CSV para o Excel em português: separador ";", vírgula decimal e BOM (acentos).
+function celulaCsv(v) {
+    if (v === null || v === undefined) return '';
+    if (typeof v === 'number') return Number.isFinite(v) ? String(v).replace('.', ',') : '';
+    let s = String(v);
+    if (/^[=+\-@\t\r]/.test(s)) s = "'" + s; // evita que o Excel execute texto como fórmula
+    return /[";\r\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+}
+
+const CAMPOS_NUMERICOS_CSV = [
+    'total_produtores', 'qtd_caprinos', 'qtd_ovinos',
+    'criacao_extensiva', 'criacao_semi_extensiva', 'criacao_intensiva',
+    'escrituracao_sim', 'escrituracao_nao',
+];
+const NUM_OU_VAZIO = (v) => (v === null || v === undefined || v === '' ? '' : Number(v));
+
+function exportarCsv() {
+    const feats = dadosVisiveis.features;
+    if (!feats.length) return;
+
+    const temMunicipio = feats.some((f) => (f.properties || {}).municipio);
+    const colunas = [
+        'nome', ...(temMunicipio ? ['municipio'] : []), 'latitude', 'longitude',
+        ...CAMPOS_NUMERICOS_CSV, 'informacoes_adicionais', 'observacoes',
+    ];
+
+    const linhas = [colunas.join(';')];
+    feats.forEach((f) => {
+        const p = f.properties || {};
+        const coords = (f.geometry && f.geometry.coordinates) || [];
+        const valores = {
+            latitude:  coords[1],   // GeoJSON guarda [longitude, latitude]
+            longitude: coords[0],
+        };
+        linhas.push(colunas.map((c) => {
+            if (c in valores) return celulaCsv(valores[c]);
+            if (CAMPOS_NUMERICOS_CSV.includes(c)) return celulaCsv(NUM_OU_VAZIO(p[c]));
+            return celulaCsv(p[c]);
+        }).join(';'));
+    });
+
+    const base = 'comunidades_caprinusig' + (filtrosAtivos() ? '_filtrado' : '');
+    baixarArquivo('\ufeff' + linhas.join('\r\n'), nomeArquivo(base, 'csv'), 'text/csv;charset=utf-8');
+}
+document.getElementById('btn-exportar-csv').addEventListener('click', exportarCsv);
+
 // ─── CARGA DE DADOS ───────────────────────────────────────────────────────────
 async function carregarDadosDaAPI() {
     const dot = document.getElementById('status-dot');
@@ -122,8 +285,8 @@ async function carregarDadosDaAPI() {
 
         dadosGlobaisGeoJson = await resposta.json();
 
-        renderizarCamadaEspacial(dadosGlobaisGeoJson);
-        configurarBarraDeBusca();
+        prepararFiltros(dadosGlobaisGeoJson);
+        renderizarCamadaEspacial(dadosGlobaisGeoJson); // também refaz a busca
 
         // Atualiza status visual
         if (dot) { dot.classList.remove('erro'); dot.classList.add('ok'); }
@@ -211,6 +374,8 @@ function renderizarCamadaEspacial(dadosGeo) {
 
     const filtro = document.getElementById('filtro-dados').value;
     const cores  = CORES_FILTRO[filtro] || CORES_FILTRO.qtd_ovinos;
+    const dados  = filtrar(dadosGeo); // só as comunidades que passam nos filtros
+    dadosVisiveis = dados;
 
     grupoCluster = L.markerClusterGroup({
         spiderfyOnMaxZoom: true,
@@ -219,7 +384,7 @@ function renderizarCamadaEspacial(dadosGeo) {
         maxClusterRadius: 45
     });
 
-    camadaGeoJson = L.geoJSON(dadosGeo, {
+    camadaGeoJson = L.geoJSON(dados, {
         pointToLayer: function (feature, latlng) {
             const valor = feature.properties[filtro] || 0;
             const raio  = calcularRaio(valor, filtro);
@@ -276,7 +441,9 @@ function renderizarCamadaEspacial(dadosGeo) {
 
     grupoCluster.addLayer(camadaGeoJson);
     map.addLayer(grupoCluster);
-    atualizarLegenda(dadosGeo, filtro, cores);
+    atualizarLegenda(dados, filtro, cores);
+    configurarBarraDeBusca(); // a busca precisa apontar para o grupo recém-criado
+    atualizarInterfaceFiltros((dadosGeo.features || []).length, dados.features.length);
 }
 
 // ─── LEGENDA ──────────────────────────────────────────────────────────────────
@@ -337,17 +504,22 @@ function atualizarLegenda(dadosGeo, filtro, cores) {
 function mostrarResumoGeral() {
     selecionarMarcador(null);
 
-    const feats = (dadosGlobaisGeoJson && dadosGlobaisGeoJson.features) || [];
+    const feats = dadosVisiveis.features || [];
     const soma = (campo) => feats.reduce((s, f) => s + (Number(f.properties[campo]) || 0), 0);
     const n = feats.length;
+    const total = ((dadosGlobaisGeoJson && dadosGlobaisGeoJson.features) || []).length;
+    const filtrando = filtrosAtivos() > 0;
+    const chipTexto = filtrando
+        ? `${fmtInt(n)} de ${fmtInt(total)} ${plural(total, 'comunidade', 'comunidades')} (filtro ativo)`
+        : `${fmtInt(n)} ${plural(n, 'comunidade cadastrada', 'comunidades cadastradas')}`;
 
     document.getElementById('conteudo-dinamico').innerHTML = `
     <div class="conteudo-painel fade-in">
         <div class="comunidade-header">
             <div class="badge-regiao">${ico('map-pin')} Semiárido Nordestino</div>
-            <h2 class="titulo-comunidade">Visão geral</h2>
+            <h2 class="titulo-comunidade">Visão geral${filtrando ? ' filtrada' : ''}</h2>
             <div class="comunidade-meta">
-                <span class="meta-chip">${ico('database')} ${fmtInt(n)} ${plural(n, 'comunidade cadastrada', 'comunidades cadastradas')}</span>
+                <span class="meta-chip">${ico('database')} ${chipTexto}</span>
             </div>
         </div>
 
@@ -370,10 +542,15 @@ function mostrarResumoGeral() {
             </div>
         </div>
 
+        ${n === 0 && filtrando ? `
+        <div class="card-texto neutro dica">
+            ${ico('filter-x')}
+            <span>Nenhuma comunidade atende aos filtros escolhidos. Ajuste ou limpe os filtros.</span>
+        </div>` : `
         <div class="card-texto verde dica">
             ${ico('mouse-pointer-click')}
             <span>Clique em uma comunidade no mapa para ver o relatório dela.</span>
-        </div>
+        </div>`}
     </div>`;
 
     renderizarIcones();
@@ -470,10 +647,9 @@ function exibirDadosNoPainel(p) {
 
 // ─── BUSCA ESPACIAL (Adaptada para abrir o Cluster) ───────────────────────────
 function configurarBarraDeBusca() {
-    const buscaExistente = map.controls ? map.controls.find(c => c instanceof L.Control.Search) : null;
-    if (buscaExistente) map.removeControl(buscaExistente);
+    if (controleBusca) { map.removeControl(controleBusca); controleBusca = null; }
 
-    const controleBusca = new L.Control.Search({
+    controleBusca = new L.Control.Search({
         layer: grupoCluster,
         propertyName: 'title',
         marker: false,
@@ -579,6 +755,78 @@ map.on('pm:create', ({ layer }) => {
         .forEach((ev) => layer.on(ev, () => atualizarMedida(layer)));
 });
 
+// ─── EXPORTAR DESENHOS (GeoJSON) ──────────────────────────────────────────────
+// Guarda as formas desenhadas. Círculos são exportados como polígono (GeoJSON
+// não tem círculo) com o raio nas propriedades.
+map.on('pm:create', ({ layer }) => {
+    desenhos.add(layer);
+    layer.on('remove', atualizarBotaoExportarDesenhos);
+    atualizarBotaoExportarDesenhos();
+});
+
+const desenhosAtuais = () => [...desenhos].filter((l) => map.hasLayer(l));
+
+function formaParaFeature(layer, indice) {
+    const r2 = (n) => +n.toFixed(2);
+    let f;
+    if (layer instanceof L.Circle) {
+        const c = layer.getLatLng(), raio = layer.getRadius();
+        const m2 = Math.PI * raio * raio;
+        f = turf.circle([c.lng, c.lat], raio, { steps: 64, units: 'meters' });
+        f.properties = {
+            forma: 'circulo', raio_m: r2(raio), area_m2: r2(m2), area_ha: r2(m2 / 10000),
+            centro_lat: +c.lat.toFixed(6), centro_lng: +c.lng.toFixed(6),
+        };
+    } else if (layer instanceof L.Polygon) { // inclui retângulo
+        f = layer.toGeoJSON();
+        const m2   = turf.area(f);
+        const perm = turf.length(turf.polygonToLine(f), { units: 'kilometers' });
+        f.properties = {
+            forma: layer instanceof L.Rectangle ? 'retangulo' : 'poligono',
+            area_m2: r2(m2), area_ha: r2(m2 / 10000), perimetro_km: +perm.toFixed(3),
+        };
+    } else {
+        f = layer.toGeoJSON();
+        const km = turf.length(f, { units: 'kilometers' });
+        f.properties = { forma: 'linha', distancia_km: +km.toFixed(3), distancia_m: r2(km * 1000) };
+    }
+    f.properties.id = indice + 1;
+    return f;
+}
+
+function exportarDesenhos() {
+    const formas = desenhosAtuais();
+    if (!formas.length) return;
+    const colecao = { type: 'FeatureCollection', features: formas.map(formaParaFeature) };
+    baixarArquivo(JSON.stringify(colecao, null, 2), nomeArquivo('desenhos_caprinusig', 'geojson'), 'application/geo+json');
+}
+
+function atualizarBotaoExportarDesenhos() {
+    if (!botaoExportarDesenhos) return;
+    const n = desenhosAtuais().length;
+    const texto = n
+        ? `Exportar ${n} ${plural(n, 'forma desenhada', 'formas desenhadas')} (GeoJSON)`
+        : 'Desenhe uma forma no mapa para exportar (GeoJSON)';
+    botaoExportarDesenhos.disabled = n === 0;
+    botaoExportarDesenhos.title = texto;
+    botaoExportarDesenhos.setAttribute('aria-label', texto);
+}
+
+L.Control.ExportarDesenhos = L.Control.extend({
+    onAdd: function () {
+        const container = L.DomUtil.create('div', 'leaflet-bar');
+        botaoExportarDesenhos = L.DomUtil.create('button', 'botao-geo', container);
+        botaoExportarDesenhos.type = 'button';
+        botaoExportarDesenhos.innerHTML = ico('download');
+        L.DomEvent.disableClickPropagation(container);
+        botaoExportarDesenhos.onclick = exportarDesenhos;
+        return container;
+    }
+});
+new L.Control.ExportarDesenhos({ position: 'topleft' }).addTo(map);
+atualizarBotaoExportarDesenhos();
+renderizarIcones();
+
 // ─── ESCALA, COORDENADAS, TELA CHEIA E HASH NA URL ────────────────────────────
 // Escala em metros/km (sem milhas).
 L.control.scale({ position: 'bottomleft', metric: true, imperial: false }).addTo(map);
@@ -658,6 +906,8 @@ map.on('enterFullscreen exitFullscreen', () => setTimeout(() => map.invalidateSi
 map.on('locationerror', () => alert("Não foi possível acessar sua geolocalização."));
 
 // ─── INICIALIZAÇÃO ────────────────────────────────────────────────────────────
+// Filtros começam abertos só em tela grande; no celular, o badge mostra se há filtro ativo.
+document.getElementById('filtros').open = window.innerWidth > 768 && window.innerHeight >= 800;
 renderizarIcones();
 criarLegenda();
 document.getElementById('conteudo-dinamico').innerHTML = htmlEsqueleto();

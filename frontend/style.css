@@ -666,3 +666,91 @@ body:has(#painel-lateral.colapsado) .botao-toggle-painel { right: 12px; }
     .botao-toggle-painel,
     .fill { transition: none; }
 }
+
+/* ─── FILTROS E EXPORTAÇÃO ───────────────────────────────── */
+[hidden] { display: none !important; }
+
+.filtros {
+    margin-top: 16px;
+    padding-top: 14px;
+    border-top: 1px solid rgba(255, 255, 255, 0.22);
+}
+.filtros > summary {
+    list-style: none;
+    display: flex; align-items: center; justify-content: space-between;
+    cursor: pointer;
+    font-size: 13px; font-weight: 600;
+    color: var(--primary-foreground);
+    border-radius: var(--radius-sm);
+}
+.filtros > summary::-webkit-details-marker { display: none; }
+.filtros > summary:focus-visible { outline-color: var(--primary-foreground); }
+.filtros-titulo { display: inline-flex; align-items: center; gap: 8px; }
+.filtros-titulo .lucide { width: 16px; height: 16px; }
+.filtros-chevron { width: 16px; height: 16px; transition: transform 0.2s var(--ease-out); }
+.filtros[open] .filtros-chevron { transform: rotate(180deg); }
+.filtros-badge {
+    min-width: 20px; height: 20px; padding: 0 6px;
+    display: inline-flex; align-items: center; justify-content: center;
+    border-radius: 100px;
+    background: var(--card); color: var(--primary);
+    font-size: 11px; font-weight: 700;
+}
+
+.filtros-corpo { margin-top: 12px; }
+.filtros-grade { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.filtro-campo { min-width: 0; }
+.filtro-label-peq {
+    display: block; margin-bottom: 5px;
+    font-size: 11px; font-weight: 500;
+    color: rgba(255, 255, 255, 0.9);
+}
+.filtros .select-wrapper select {
+    padding: 8px 28px 8px 10px;
+    font-size: 13px;
+    text-overflow: ellipsis;
+}
+.filtros .select-wrapper > .lucide { right: 9px; width: 14px; height: 14px; }
+.filtros-nota {
+    margin: 10px 0 0;
+    font-size: 11px; line-height: 1.45;
+    color: rgba(255, 255, 255, 0.8);
+}
+.filtros-rodape {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    min-height: 20px; margin-top: 12px;
+    font-size: 12px; font-weight: 500;
+    color: var(--primary-foreground);
+    font-variant-numeric: tabular-nums;
+}
+.btn-link {
+    background: none; border: none; padding: 0;
+    color: var(--primary-foreground);
+    font-size: 12px; font-weight: 600;
+    text-decoration: underline; text-underline-offset: 2px;
+}
+.btn-link:hover { text-decoration-thickness: 2px; }
+.btn-link:focus-visible { outline-color: var(--primary-foreground); }
+
+.btn-exportar {
+    width: 100%; margin-top: 12px; padding: 9px 14px;
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    border-radius: var(--radius-md);
+    border: 1px solid rgba(255, 255, 255, 0.35);
+    background: rgba(255, 255, 255, 0.16);
+    color: var(--primary-foreground);
+    font-size: 13px; font-weight: 600;
+    transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+.btn-exportar:hover:not(:disabled) { background: rgba(255, 255, 255, 0.28); border-color: rgba(255, 255, 255, 0.5); }
+.btn-exportar:focus-visible { outline-color: var(--primary-foreground); }
+.btn-exportar:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn-exportar .lucide { width: 16px; height: 16px; }
+
+/* Botão de exportar desenhos (barra à esquerda do mapa) */
+.botao-geo:disabled { opacity: 0.4; cursor: not-allowed; }
+.botao-geo:disabled:hover { background: var(--card); }
+
+@media (prefers-reduced-motion: reduce) {
+    .filtros-chevron { transition: none; }
+}

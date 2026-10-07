@@ -49,6 +49,68 @@
                 </select>
                 <i data-lucide="chevron-down"></i>
             </div>
+
+            <!-- FILTROS E EXPORTAÇÃO -->
+            <details class="filtros" id="filtros">
+                <summary>
+                    <span class="filtros-titulo">
+                        <i data-lucide="sliders-horizontal"></i> Filtros
+                        <span class="filtros-badge" id="filtros-badge" hidden>0</span>
+                    </span>
+                    <i data-lucide="chevron-down" class="filtros-chevron"></i>
+                </summary>
+
+                <div class="filtros-corpo">
+                    <div class="filtros-grade">
+                        <!-- Só aparece se a API enviar a propriedade "municipio" -->
+                        <div class="filtro-campo" id="campo-municipio" hidden>
+                            <label class="filtro-label-peq" for="filtro-municipio">Município</label>
+                            <div class="select-wrapper">
+                                <select id="filtro-municipio"><option value="">Todos</option></select>
+                                <i data-lucide="chevron-down"></i>
+                            </div>
+                        </div>
+
+                        <div class="filtro-campo">
+                            <label class="filtro-label-peq" for="filtro-sistema">Sistema de criação</label>
+                            <div class="select-wrapper">
+                                <select id="filtro-sistema">
+                                    <option value="">Todos</option>
+                                    <option value="extensiva">Extensiva</option>
+                                    <option value="semi_extensiva">Semi-extensiva</option>
+                                    <option value="intensiva">Intensiva</option>
+                                </select>
+                                <i data-lucide="chevron-down"></i>
+                            </div>
+                        </div>
+
+                        <div class="filtro-campo">
+                            <label class="filtro-label-peq" for="filtro-escrituracao">Escrituração</label>
+                            <div class="select-wrapper">
+                                <select id="filtro-escrituracao">
+                                    <option value="">Todas</option>
+                                    <option value="sem">Sem escrituração</option>
+                                    <option value="com">Com escrituração</option>
+                                </select>
+                                <i data-lucide="chevron-down"></i>
+                            </div>
+                        </div>
+                    </div>
+
+                    <p class="filtros-nota">
+                        Sistema: o predominante na comunidade. Sem escrituração: nenhum produtor registra.
+                    </p>
+
+                    <div class="filtros-rodape">
+                        <span id="filtros-resultado" aria-live="polite"></span>
+                        <button type="button" class="btn-link" id="btn-limpar-filtros" hidden>Limpar filtros</button>
+                    </div>
+
+                    <button type="button" class="btn-exportar" id="btn-exportar-csv" disabled>
+                        <i data-lucide="download"></i> <span>Baixar CSV</span>
+                    </button>
+                </div>
+            </details>
         </div>
 
         <!-- CORPO COM SCROLL -->
