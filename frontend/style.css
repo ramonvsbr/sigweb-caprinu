@@ -784,3 +784,101 @@ body:has(#painel-lateral.colapsado) .botao-toggle-painel { right: 12px; }
     display: flex; justify-content: space-between;
     font-size: 11px; color: var(--muted-foreground);
 }
+
+/* ─── CAMADAS IMPORTADAS (GeoJSON) ───────────────────────── */
+.btn-importar { margin-top: 0; }
+.camadas-msg {
+    margin: 10px 0 0; padding: 7px 10px;
+    border-radius: var(--radius-md);
+    background: rgba(255, 255, 255, 0.16);
+    border: 1px solid rgba(255, 255, 255, 0.24);
+    font-size: 12px; line-height: 1.45;
+    color: var(--primary-foreground);
+}
+.camadas-msg.erro {
+    background: var(--card);
+    border-color: var(--destructive);
+    color: var(--destructive);
+}
+.camadas-lista {
+    list-style: none; margin: 10px 0 0; padding: 0;
+    display: flex; flex-direction: column; gap: 6px;
+}
+.camadas-lista:empty { display: none; }
+.camada-item {
+    display: flex; align-items: center; gap: 6px;
+    padding: 6px 6px 6px 10px;
+    border-radius: var(--radius-md);
+    background: rgba(255, 255, 255, 0.16);
+    border: 1px solid rgba(255, 255, 255, 0.24);
+    font-size: 12px; color: var(--primary-foreground);
+}
+.camada-nome {
+    flex: 1; min-width: 0;
+    display: flex; align-items: center; gap: 8px;
+    cursor: pointer;
+}
+.camada-nome input { margin: 0; flex-shrink: 0; accent-color: var(--card); }
+.camada-cor {
+    width: 12px; height: 12px; flex-shrink: 0;
+    border-radius: 50%; border: 2px solid var(--card);
+}
+.camada-texto {
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    font-weight: 600;
+}
+.camada-qtd { white-space: nowrap; opacity: 0.85; font-variant-numeric: tabular-nums; }
+.camada-btn {
+    width: 26px; height: 26px; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    border: none; border-radius: var(--radius-sm);
+    background: transparent; color: inherit;
+}
+.camada-btn:hover { background: rgba(255, 255, 255, 0.24); }
+.camada-btn:focus-visible { outline-color: var(--primary-foreground); }
+.camada-btn .lucide { width: 15px; height: 15px; }
+.camada-nome input:focus-visible { outline-color: var(--primary-foreground); }
+
+/* Popup com os atributos da feição importada */
+.leaflet-popup-content-wrapper {
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-lg);
+    font-family: var(--font-body);
+    color: var(--foreground);
+}
+.leaflet-popup-content { margin: 12px 14px; font-size: 12px; line-height: 1.45; }
+.popup-attrs { border-collapse: collapse; width: 100%; }
+.popup-attrs th {
+    text-align: left; vertical-align: top;
+    padding: 2px 10px 2px 0;
+    font-weight: 500; color: var(--muted-foreground);
+}
+.popup-attrs td { padding: 2px 0; font-weight: 600; overflow-wrap: anywhere; }
+.popup-mais { margin: 6px 0 0; color: var(--muted-foreground); }
+
+/* ─── RESUMO DA ÁREA DESENHADA ───────────────────────────── */
+.btn-area {
+    width: 100%; margin-bottom: 4px; padding: 9px 14px;
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border);
+    background: var(--card); color: var(--primary);
+    font-size: 13px; font-weight: 600;
+}
+.btn-area:hover { background: var(--accent); }
+.btn-area .lucide { width: 16px; height: 16px; }
+.lista-area {
+    list-style: none; margin: 0; padding: 0;
+    display: flex; flex-direction: column; gap: 6px;
+}
+.item-area {
+    width: 100%; text-align: left;
+    display: flex; flex-direction: column; gap: 2px;
+    padding: 10px 12px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+}
+.item-area:hover { background: var(--accent); }
+.item-area-nome { font-size: 13px; font-weight: 600; color: var(--foreground); }
+.item-area-num { font-size: 12px; color: var(--muted-foreground); font-variant-numeric: tabular-nums; }

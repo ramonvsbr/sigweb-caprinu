@@ -85,7 +85,7 @@ const mapaSatelite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/se
     attribution: 'Tiles © Esri — Source: Esri, Maxar, Earthstar Geographics, and the GIS User Community'
 });
 
-L.control.layers({ 'Ruas': mapaRuas, 'Satélite': mapaSatelite }, null, {
+const controleCamadasMapa = L.control.layers({ 'Ruas': mapaRuas, 'Satélite': mapaSatelite }, null, {
     position: 'topright',
     collapsed: true,
 }).addTo(map);
@@ -106,6 +106,8 @@ const desenhos          = new Set(); // formas desenhadas pelo usuário (Geoman)
 let botaoExportarDesenhos = null;
 let modoVisualizacao    = 'circulos'; // 'circulos' ou 'calor'
 let camadaCalor         = null;       // camada do mapa de calor (leaflet.heat)
+let areaAtiva           = null;       // forma desenhada cujo resumo está aberto no painel
+let quadroArea          = null;       // requestAnimationFrame pendente do painel da área
 
 // ─── TOGGLE DO PAINEL ─────────────────────────────────────────────────────────
 function togglePainel() {
@@ -203,7 +205,8 @@ function aoMudarFiltros(ajustarVista) {
     if (!dadosGlobaisGeoJson) return;
     renderizarCamadaEspacial(dadosGlobaisGeoJson);
     // Sem comunidade aberta (ou a aberta saiu do filtro): volta à visão geral já recalculada.
-    if (!marcadorSelecionado) mostrarResumoGeral();
+    // Com uma área desenhada aberta, o painel dela já foi refeito em renderizarCamadaEspacial.
+    if (!marcadorSelecionado && !areaAtiva) mostrarResumoGeral();
     if (ajustarVista && filtrosAtivos()) enquadrarVisiveis();
 }
 
@@ -404,6 +407,7 @@ function selecionarMarcador(layer) {
     const anterior = marcadorSelecionado;
     marcadorSelecionado = layer;
     nomeSelecionado = layer ? layer.feature.properties.nome : null;
+    if (layer) areaAtiva = null; // abriu uma comunidade: sai do resumo da área
     if (anterior && anterior !== layer) aplicarEstilo(anterior);
     if (layer) {
         aplicarEstilo(layer);
@@ -490,6 +494,7 @@ function renderizarCamadaEspacial(dadosGeo) {
     atualizarLegenda(dados, filtro, cores);
     configurarBarraDeBusca(); // a busca precisa apontar para o grupo recém-criado
     atualizarInterfaceFiltros((dadosGeo.features || []).length, dados.features.length);
+    atualizarSelecoesDeArea(); // filtros e métrica mudam quem está dentro das áreas desenhadas
 }
 
 // ─── LEGENDA ──────────────────────────────────────────────────────────────────
@@ -567,6 +572,7 @@ function atualizarLegenda(dadosGeo, filtro, cores) {
 // ─── VISÃO GERAL (painel sem comunidade aberta) ───────────────────────────────
 function mostrarResumoGeral() {
     selecionarMarcador(null);
+    areaAtiva = null;
 
     const feats = dadosVisiveis.features || [];
     const soma = (campo) => feats.reduce((s, f) => s + (Number(f.properties[campo]) || 0), 0);
@@ -805,17 +811,177 @@ function textoMedida(layer) {
     return `<b>Distância:</b> ${fmt(km)} km (${fmt(km * 1000, 0)} m)`;
 }
 
+// ─── SELEÇÃO POR ÁREA DESENHADA ───────────────────────────────────────────────
+// Polígono, retângulo e círculo contam as comunidades que estão dentro deles
+// (só as que passam nos filtros, as mesmas do mapa). Linhas não selecionam nada.
+const ehAreaSelecionavel = (l) => l instanceof L.Circle || l instanceof L.Polygon;
+
+function comunidadesDentro(layer) {
+    const pontos = (dadosVisiveis.features || [])
+        .filter((f) => f.geometry && f.geometry.type === 'Point');
+    try {
+        if (layer instanceof L.Circle) {
+            const centro = layer.getLatLng(), raio = layer.getRadius();
+            return pontos.filter((f) => {
+                const [lng, lat] = f.geometry.coordinates;
+                return centro.distanceTo(L.latLng(lat, lng)) <= raio; // metros reais
+            });
+        }
+        const poligono = layer.toGeoJSON(); // polígono e retângulo
+        return pontos.filter((f) => turf.booleanPointInPolygon(f.geometry.coordinates, poligono));
+    } catch (e) {
+        return []; // forma incompleta ou inválida
+    }
+}
+
+function resumoDaArea(layer) {
+    const dentro = comunidadesDentro(layer);
+    const soma = (campo) => dentro.reduce((t, f) => t + (Number((f.properties || {})[campo]) || 0), 0);
+    return {
+        dentro,
+        n:          dentro.length,
+        produtores: soma('total_produtores'),
+        caprinos:   soma('qtd_caprinos'),
+        ovinos:     soma('qtd_ovinos'),
+    };
+}
+
+// Texto do tooltip permanente da forma: medidas + contagem (quando é uma área).
+function textoForma(layer) {
+    let html = textoMedida(layer);
+    if (ehAreaSelecionavel(layer)) {
+        const r = resumoDaArea(layer);
+        html += `<br><b>Comunidades:</b> ${fmtInt(r.n)} · <b>Produtores:</b> ${fmtInt(r.produtores)}`
+              + `<br><b>Caprinos:</b> ${fmtInt(r.caprinos)} · <b>Ovinos:</b> ${fmtInt(r.ovinos)}`;
+    }
+    return html;
+}
+
 function atualizarMedida(layer) {
     if (!layer.getTooltip()) return;
-    try { layer.setTooltipContent(textoMedida(layer)); } catch (e) { /* forma incompleta */ }
+    try { layer.setTooltipContent(textoForma(layer)); } catch (e) { /* forma incompleta */ }
+    if (layer === areaAtiva) agendarPainelDaArea(layer);
+}
+
+// Edição e arraste disparam muitos eventos: o painel é refeito no máximo uma vez por quadro.
+function agendarPainelDaArea(layer) {
+    if (quadroArea) cancelAnimationFrame(quadroArea);
+    quadroArea = requestAnimationFrame(() => {
+        quadroArea = null;
+        if (layer === areaAtiva && map.hasLayer(layer)) mostrarSelecaoArea(layer);
+    });
+}
+
+function atualizarSelecoesDeArea() {
+    desenhosAtuais().forEach((l) => { if (ehAreaSelecionavel(l)) atualizarMedida(l); });
+    // atualizarMedida agenda o painel da área ativa; aqui ele é refeito agora, então cancela o agendado.
+    if (quadroArea) { cancelAnimationFrame(quadroArea); quadroArea = null; }
+    if (areaAtiva && map.hasLayer(areaAtiva)) mostrarSelecaoArea(areaAtiva);
+}
+
+function descricaoForma(layer) {
+    if (layer instanceof L.Circle) return `Círculo · raio ${fmt(layer.getRadius() / 1000)} km`;
+    const km2 = turf.area(layer.toGeoJSON()) / 1e6;
+    return `${layer instanceof L.Rectangle ? 'Retângulo' : 'Polígono'} · ${fmt(km2)} km²`;
+}
+
+// Abre uma comunidade a partir da lista da área (mesmo caminho da busca: desagrupa e clica).
+function abrirComunidadePorFeature(feature) {
+    let alvo = null;
+    camadaGeoJson.eachLayer((l) => {
+        if (l.feature.properties.nome === feature.properties.nome) alvo = l;
+    });
+    if (alvo) grupoCluster.zoomToShowLayer(alvo, () => alvo.fire('click'));
+}
+
+const MAX_LISTA_AREA = 100;
+
+function mostrarSelecaoArea(layer, abrirPainel = false) {
+    selecionarMarcador(null);
+    areaAtiva = layer;
+
+    if (abrirPainel) {
+        // No celular o painel cobre o mapa inteiro: não abre sozinho (o tooltip da forma já traz os totais).
+        const celular = window.matchMedia('(max-width: 768px)').matches;
+        const painel  = document.getElementById('painel-lateral');
+        if (!celular && painel.classList.contains('colapsado')) togglePainel();
+    }
+
+    const r = resumoDaArea(layer);
+    const filtrando = filtrosAtivos() > 0;
+    const lista = r.dentro
+        .slice()
+        .sort((a, b) => String((a.properties || {}).nome ?? '').localeCompare(String((b.properties || {}).nome ?? ''), 'pt-BR'))
+        .slice(0, MAX_LISTA_AREA);
+
+    const itens = lista.map((f, i) => {
+        const p = f.properties || {};
+        return `<li><button type="button" class="item-area" data-i="${i}">
+            <span class="item-area-nome">${esc(p.nome)}</span>
+            <span class="item-area-num">${fmtInt(p.total_produtores)} produtores · ${fmtInt(p.qtd_caprinos)} caprinos · ${fmtInt(p.qtd_ovinos)} ovinos</span>
+        </button></li>`;
+    }).join('');
+
+    document.getElementById('conteudo-dinamico').innerHTML = `
+    <div class="conteudo-painel">
+        <div class="comunidade-header">
+            <button type="button" class="btn-voltar" onclick="mostrarResumoGeral()">${ico('arrow-left')} Visão geral</button>
+            <div class="badge-regiao">${ico('shapes')} Área desenhada</div>
+            <h2 class="titulo-comunidade">Dentro da área</h2>
+            <div class="comunidade-meta">
+                <span class="meta-chip">${ico('ruler')} ${esc(descricaoForma(layer))}</span>
+                ${filtrando ? `<span class="meta-chip">${ico('filter')} Filtros aplicados</span>` : ''}
+            </div>
+        </div>
+
+        <div class="grid-kpi">
+            <div class="card-kpi" style="--acc: var(--success);">
+                <div class="card-kpi-label">${ico('map-pin')} Comunidades</div>
+                <div class="card-kpi-value">${fmtInt(r.n)}</div>
+            </div>
+            <div class="card-kpi" style="--acc: var(--warning);">
+                <div class="card-kpi-label">${ico('users')} Produtores</div>
+                <div class="card-kpi-value">${fmtInt(r.produtores)}</div>
+            </div>
+            <div class="card-kpi" style="--acc: var(--primary);">
+                <div class="card-kpi-label">${ico('paw-print')} Caprinos</div>
+                <div class="card-kpi-value">${fmtInt(r.caprinos)}<span class="card-kpi-unit">cab.</span></div>
+            </div>
+            <div class="card-kpi" style="--acc: var(--secondary);">
+                <div class="card-kpi-label">${ico('paw-print')} Ovinos</div>
+                <div class="card-kpi-value">${fmtInt(r.ovinos)}<span class="card-kpi-unit">cab.</span></div>
+            </div>
+        </div>
+
+        <button type="button" class="btn-area" id="btn-enquadrar-area">${ico('locate-fixed')} Enquadrar a área no mapa</button>
+
+        ${r.n === 0 ? `
+        <div class="card-texto neutro dica">
+            ${ico('map-pin-off')}
+            <span>Nenhuma comunidade dentro desta área${filtrando ? ' com os filtros atuais' : ''}.</span>
+        </div>` : `
+        <div class="secao-titulo">Comunidades na área</div>
+        <ul class="lista-area">${itens}</ul>
+        ${r.n > MAX_LISTA_AREA ? `<p class="legenda-nota">Mostrando ${MAX_LISTA_AREA} de ${fmtInt(r.n)} comunidades (os totais acima contam todas).</p>` : ''}`}
+    </div>`;
+
+    const conteudo = document.getElementById('conteudo-dinamico');
+    conteudo.querySelector('#btn-enquadrar-area').addEventListener('click', () => {
+        map.fitBounds(layer.getBounds(), { padding: [40, 40] });
+    });
+    conteudo.querySelectorAll('.item-area').forEach((btn) => {
+        btn.addEventListener('click', () => abrirComunidadePorFeature(lista[Number(btn.dataset.i)]));
+    });
+
+    renderizarIcones();
 }
 
 map.on('pm:create', ({ layer }) => {
     if (!(layer instanceof L.Polyline) && !(layer instanceof L.Circle)) return; // polígono e retângulo também são Polyline
-    layer.bindTooltip(textoMedida(layer), {
+    layer.bindTooltip(textoForma(layer), {
         permanent: true, direction: 'center', className: 'medida-tooltip',
     });
-    ['pm:edit', 'pm:markerdrag', 'pm:dragend', 'pm:vertexadded', 'pm:vertexremoved']
+    ['pm:edit', 'pm:markerdrag', 'pm:drag', 'pm:dragend', 'pm:vertexadded', 'pm:vertexremoved']
         .forEach((ev) => layer.on(ev, () => atualizarMedida(layer)));
 });
 
@@ -890,6 +1056,202 @@ L.Control.ExportarDesenhos = L.Control.extend({
 new L.Control.ExportarDesenhos({ position: 'topleft' }).addTo(map);
 atualizarBotaoExportarDesenhos();
 renderizarIcones();
+
+// ─── SELEÇÃO POR ÁREA: LIGAÇÃO COM O DESENHO ──────────────────────────────────
+// Ao terminar de desenhar um polígono, retângulo ou círculo, o painel mostra o
+// resumo da área. Clicar na forma (fora dos modos do Geoman) reabre o resumo dela.
+map.on('pm:create', ({ layer }) => {
+    if (!ehAreaSelecionavel(layer)) return;
+    layer.on('click', () => { if (!geomanAtivo()) mostrarSelecaoArea(layer, true); });
+    layer.on('remove', () => { if (areaAtiva === layer) mostrarResumoGeral(); });
+    mostrarSelecaoArea(layer, true);
+});
+
+// ─── CAMADAS IMPORTADAS (GeoJSON do usuário) ──────────────────────────────────
+// O usuário escolhe um .geojson/.json (ex.: limites municipais) e ele é desenhado
+// por baixo das comunidades. Cada camada tem liga/desliga no painel e no seletor
+// de camadas do mapa (os dois ficam sincronizados), zoom e remoção.
+const TAMANHO_MAX_GEOJSON = 20 * 1024 * 1024; // 20 MB
+const CORES_CAMADAS = ['#7c3aed', '#0d9488', '#db2777', '#ea580c', '#475569', '#0891b2'];
+const TIPOS_GEOMETRIA = ['Point', 'MultiPoint', 'LineString', 'MultiLineString', 'Polygon', 'MultiPolygon', 'GeometryCollection'];
+
+// Painel próprio, abaixo dos círculos das comunidades (overlayPane = 400).
+map.createPane('camadasImportadas');
+map.getPane('camadasImportadas').style.zIndex = 380;
+// Canvas aguenta melhor arquivos grandes (limites municipais) do que SVG.
+const rendererImportado = L.canvas({ pane: 'camadasImportadas', padding: 0.5 });
+
+const camadasImportadas = []; // { nome, cor, camada, el }
+let contadorCamadas = 0;
+
+const elMsgCamadas = document.getElementById('camadas-msg');
+function mostrarMsgCamadas(texto, erro) {
+    elMsgCamadas.textContent = texto;
+    elMsgCamadas.classList.toggle('erro', !!erro);
+    elMsgCamadas.hidden = !texto;
+}
+
+function normalizarGeoJson(obj) {
+    if (!obj || typeof obj !== 'object') throw new Error('não é um GeoJSON válido.');
+
+    const crs = obj.crs && obj.crs.properties && String(obj.crs.properties.name || '');
+    if (crs && !/4326|CRS84/i.test(crs)) {
+        throw new Error(`está em outro sistema de coordenadas (${crs}). Converta para WGS 84 (EPSG:4326).`);
+    }
+
+    let colecao;
+    if (obj.type === 'FeatureCollection') {
+        if (!Array.isArray(obj.features)) throw new Error('FeatureCollection sem a lista "features".');
+        colecao = obj;
+    } else if (obj.type === 'Feature') {
+        colecao = { type: 'FeatureCollection', features: [obj] };
+    } else if (TIPOS_GEOMETRIA.includes(obj.type)) {
+        colecao = { type: 'FeatureCollection', features: [{ type: 'Feature', properties: {}, geometry: obj }] };
+    } else {
+        throw new Error('tipo GeoJSON não reconhecido.');
+    }
+
+    const features = colecao.features.filter((f) => f && f.geometry && f.geometry.type);
+    if (!features.length) throw new Error('não tem nenhuma geometria.');
+    return { type: 'FeatureCollection', features };
+}
+
+// Tabela de atributos do popup (texto do arquivo sempre passa por esc()).
+function htmlAtributos(props) {
+    const chaves = Object.keys(props || {})
+        .filter((k) => props[k] !== null && props[k] !== '' && typeof props[k] !== 'object');
+    if (!chaves.length) return '<em>Sem atributos.</em>';
+    const linhas = chaves.slice(0, 20)
+        .map((k) => `<tr><th>${esc(k)}</th><td>${esc(props[k])}</td></tr>`).join('');
+    const resto = chaves.length - 20;
+    return `<table class="popup-attrs">${linhas}</table>`
+         + (resto > 0 ? `<p class="popup-mais">+ ${resto} ${plural(resto, 'atributo', 'atributos')}</p>` : '');
+}
+
+function criarCamadaImportada(colecao, cor) {
+    const ehPonto = (f) => /Point/.test((f.geometry || {}).type || '');
+    return L.geoJSON(colecao, {
+        pane:     'camadasImportadas',
+        renderer: rendererImportado,
+        pmIgnore: true, // o Geoman não edita, move nem apaga a camada importada
+        style: (f) => (ehPonto(f)
+            ? { color: cor, weight: 2, opacity: 1, fillColor: '#ffffff', fillOpacity: 0.9 }
+            : { color: cor, weight: 2, opacity: 0.9, fillColor: cor, fillOpacity: 0.08 }),
+        pointToLayer: (f, latlng) => L.circleMarker(latlng, {
+            pane: 'camadasImportadas', renderer: rendererImportado, radius: 5, pmIgnore: true,
+        }),
+        onEachFeature: (feature, layer) => {
+            layer.on('click', (e) => {
+                if (geomanAtivo()) return; // desenhando: o clique vai para o mapa
+                L.DomEvent.stopPropagation(e);
+                L.popup({ maxWidth: 280 })
+                    .setLatLng(e.latlng)
+                    .setContent(htmlAtributos(feature.properties))
+                    .openOn(map);
+            });
+        },
+    });
+}
+
+function atualizarBadgeCamadas() {
+    const badge = document.getElementById('camadas-badge');
+    badge.hidden = camadasImportadas.length === 0;
+    badge.textContent = camadasImportadas.length;
+}
+
+function criarItemCamada(item, n) {
+    const li = document.createElement('li');
+    li.className = 'camada-item';
+    li.innerHTML = `
+        <label class="camada-nome">
+            <input type="checkbox" checked>
+            <span class="camada-cor"></span>
+            <span class="camada-texto"></span>
+        </label>
+        <span class="camada-qtd"></span>
+        <button type="button" class="camada-btn" data-acao="zoom">${ico('locate-fixed')}</button>
+        <button type="button" class="camada-btn" data-acao="remover">${ico('trash-2')}</button>`;
+
+    const caixa = li.querySelector('input');
+    li.querySelector('.camada-cor').style.background = item.cor;
+    li.querySelector('.camada-texto').textContent = item.nome;
+    li.querySelector('.camada-texto').title = item.nome;
+    li.querySelector('.camada-qtd').textContent = `${fmtInt(n)} ${plural(n, 'feição', 'feições')}`;
+    caixa.setAttribute('aria-label', `Mostrar a camada ${item.nome}`);
+    li.querySelector('[data-acao="zoom"]').title = 'Ir para a camada';
+    li.querySelector('[data-acao="zoom"]').setAttribute('aria-label', `Ir para a camada ${item.nome}`);
+    li.querySelector('[data-acao="remover"]').title = 'Remover a camada';
+    li.querySelector('[data-acao="remover"]').setAttribute('aria-label', `Remover a camada ${item.nome}`);
+
+    // Liga/desliga pelo painel...
+    caixa.addEventListener('change', () => {
+        if (caixa.checked) map.addLayer(item.camada); else map.removeLayer(item.camada);
+    });
+    // ...ou pelo seletor de camadas do mapa: a caixa acompanha.
+    item.camada.on('add',    () => { caixa.checked = true; });
+    item.camada.on('remove', () => { caixa.checked = false; });
+
+    li.querySelector('[data-acao="zoom"]').addEventListener('click', () => {
+        if (!map.hasLayer(item.camada)) map.addLayer(item.camada);
+        map.fitBounds(item.camada.getBounds(), { padding: [30, 30] });
+    });
+    li.querySelector('[data-acao="remover"]').addEventListener('click', () => {
+        map.removeLayer(item.camada);
+        controleCamadasMapa.removeLayer(item.camada);
+        camadasImportadas.splice(camadasImportadas.indexOf(item), 1);
+        li.remove();
+        atualizarBadgeCamadas();
+        mostrarMsgCamadas('', false);
+    });
+    return li;
+}
+
+async function importarArquivoGeoJson(arquivo) {
+    const nome = arquivo.name.replace(/\.(geo)?json$/i, '') || 'Camada';
+    if (arquivo.size > TAMANHO_MAX_GEOJSON) throw new Error(`"${arquivo.name}" passa de 20 MB.`);
+
+    let obj;
+    try { obj = JSON.parse(await arquivo.text()); }
+    catch (e) { throw new Error(`"${arquivo.name}" não é um JSON válido.`); }
+
+    let colecao;
+    try { colecao = normalizarGeoJson(obj); }
+    catch (e) { throw new Error(`"${arquivo.name}": ${e.message}`); }
+
+    const cor    = CORES_CAMADAS[contadorCamadas % CORES_CAMADAS.length];
+    const camada = criarCamadaImportada(colecao, cor);
+    const limites = camada.getBounds();
+    if (!limites.isValid() || !limitesNordeste.intersects(limites)) {
+        throw new Error(`"${arquivo.name}": as coordenadas ficam fora da área do mapa. Confira se o arquivo está em WGS 84 (lat/long).`);
+    }
+
+    contadorCamadas += 1;
+    const item = { nome, cor, camada };
+    camadasImportadas.push(item);
+    camada.addTo(map);
+    controleCamadasMapa.addOverlay(camada, esc(nome)); // o seletor monta o nome como HTML
+    document.getElementById('camadas-lista').appendChild(criarItemCamada(item, colecao.features.length));
+    atualizarBadgeCamadas();
+    renderizarIcones();
+    map.fitBounds(limites, { padding: [30, 30] });
+    return nome;
+}
+
+const entradaGeoJson = document.getElementById('camadas-arquivo');
+document.getElementById('btn-importar-geojson').addEventListener('click', () => entradaGeoJson.click());
+entradaGeoJson.addEventListener('change', async () => {
+    const arquivos = [...entradaGeoJson.files];
+    entradaGeoJson.value = ''; // permite importar o mesmo arquivo de novo
+    if (!arquivos.length) return;
+
+    const importadas = [], erros = [];
+    for (const arquivo of arquivos) {
+        try { importadas.push(await importarArquivoGeoJson(arquivo)); }
+        catch (e) { erros.push(e.message); }
+    }
+    if (erros.length) mostrarMsgCamadas(erros.join(' '), true);
+    else mostrarMsgCamadas(`${importadas.length} ${plural(importadas.length, 'camada importada', 'camadas importadas')}.`, false);
+});
 
 // ─── ESCALA, COORDENADAS, TELA CHEIA E HASH NA URL ────────────────────────────
 // Escala em metros/km (sem milhas).

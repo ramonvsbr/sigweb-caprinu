@@ -122,6 +122,29 @@
                     </button>
                 </div>
             </details>
+
+            <!-- CAMADAS IMPORTADAS (GeoJSON do usuário) -->
+            <details class="filtros" id="camadas">
+                <summary>
+                    <span class="filtros-titulo">
+                        <i data-lucide="layers"></i> Camadas importadas
+                        <span class="filtros-badge" id="camadas-badge" hidden>0</span>
+                    </span>
+                    <i data-lucide="chevron-down" class="filtros-chevron"></i>
+                </summary>
+
+                <div class="filtros-corpo">
+                    <input type="file" id="camadas-arquivo" accept=".geojson,.json,application/geo+json,application/json" multiple hidden>
+                    <button type="button" class="btn-exportar btn-importar" id="btn-importar-geojson">
+                        <i data-lucide="upload"></i> <span>Importar GeoJSON</span>
+                    </button>
+                    <p class="camadas-msg" id="camadas-msg" role="status" aria-live="polite" hidden></p>
+                    <ul class="camadas-lista" id="camadas-lista"></ul>
+                    <p class="filtros-nota">
+                        Arquivo .geojson ou .json em WGS 84 (latitude e longitude), até 20 MB. As camadas ficam só nesta sessão.
+                    </p>
+                </div>
+            </details>
         </div>
 
         <!-- CORPO COM SCROLL -->
