@@ -74,30 +74,18 @@ const map = L.map('map', {
 
 map.fitBounds(VISTA_INICIAL, { padding: [20, 20] });
 
-// Mapas base, todos sem API Key: claro e discreto (CARTO Positron, o padrão, para os
-// marcadores se destacarem), ruas (OpenStreetMap) e satélite (Esri World Imagery).
-// crossOrigin: o navegador só deixa o plugin de impressão "fotografar" o mapa
-// (imprimir e baixar imagem) se os tiles vierem liberados para isso.
-const mapaClaro = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
-    subdomains: 'abcd',
-    maxZoom: 19,
-    crossOrigin: true,
-    attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors © <a href="https://carto.com/attributions">CARTO</a>'
-}).addTo(map);
-
+// Mapas base: ruas (OpenStreetMap) e satélite (Esri World Imagery), ambos sem API Key.
 const mapaRuas = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     maxZoom: 19,
-    crossOrigin: true,
     attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-});
+}).addTo(map);
 
 const mapaSatelite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
     maxZoom: 19,
-    crossOrigin: true,
     attribution: 'Tiles © Esri — Source: Esri, Maxar, Earthstar Geographics, and the GIS User Community'
 });
 
-L.control.layers({ 'Claro': mapaClaro, 'Ruas': mapaRuas, 'Satélite': mapaSatelite }, null, {
+L.control.layers({ 'Ruas': mapaRuas, 'Satélite': mapaSatelite }, null, {
     position: 'topright',
     collapsed: true,
 }).addTo(map);
@@ -749,7 +737,7 @@ function configurarBarraDeBusca() {
 // ─── GEOLOCALIZAÇÃO ───────────────────────────────────────────────────────────
 L.Control.Geolocalizacao = L.Control.extend({
     onAdd: function(map) {
-        const container = L.DomUtil.create('div', 'leaflet-bar controle-ferramenta');
+        const container = L.DomUtil.create('div', 'leaflet-bar');
         const botao     = L.DomUtil.create('button', 'botao-geo', container);
         botao.innerHTML = ico('locate-fixed');
         botao.title     = 'Minha localização';
@@ -890,7 +878,7 @@ function atualizarBotaoExportarDesenhos() {
 
 L.Control.ExportarDesenhos = L.Control.extend({
     onAdd: function () {
-        const container = L.DomUtil.create('div', 'leaflet-bar controle-ferramenta');
+        const container = L.DomUtil.create('div', 'leaflet-bar');
         botaoExportarDesenhos = L.DomUtil.create('button', 'botao-geo', container);
         botaoExportarDesenhos.type = 'button';
         botaoExportarDesenhos.innerHTML = ico('download');
@@ -933,38 +921,6 @@ new L.Control.FullScreen({
     fullscreenElement:   document.body,
 }).addTo(map);
 map.on('enterFullscreen exitFullscreen', () => setTimeout(() => map.invalidateSize(), 200));
-
-// ─── IMPRIMIR E BAIXAR IMAGEM (leaflet-easyPrint) ─────────────────────────────
-// O plugin "fotografa" o mapa (com marcadores, calor e legenda) e abre a impressão
-// ou baixa um PNG. Os controles de navegação e de desenho ficam de fora; a escala,
-// a legenda e a atribuição do mapa base saem na imagem.
-if (L.easyPrint) {
-    const esconder = [
-        'leaflet-control-zoom', 'leaflet-pm-toolbar', 'leaflet-control-layers',
-        'leaflet-control-search', 'leaflet-control-fullscreen', 'leaflet-control-easyPrint',
-        'controle-ferramenta', 'controle-coordenadas',
-    ];
-    L.easyPrint({
-        title: 'Imprimir mapa',
-        position: 'topright',
-        sizeModes: ['Current', 'A4Landscape', 'A4Portrait'],
-        defaultSizeTitles: { Current: 'Tamanho da tela', A4Landscape: 'A4 paisagem', A4Portrait: 'A4 retrato' },
-        customWindowTitle: 'CaprinuSIG: mapa',
-        spinnerBgColor: PALETA.primary,
-        hideControlContainer: false,
-        hideClasses: esconder,
-    }).addTo(map);
-    L.easyPrint({
-        title: 'Baixar imagem do mapa (PNG)',
-        position: 'topright',
-        exportOnly: true,
-        sizeModes: ['Current'],
-        filename: nomeArquivo('mapa_caprinusig', 'png').replace(/\.png$/, ''),
-        spinnerBgColor: PALETA.primary,
-        hideControlContainer: false,
-        hideClasses: esconder,
-    }).addTo(map);
-}
 
 // Hash na URL (#zoom/lat/lng): o endereço guarda a vista e dá para compartilhar.
 // Implementação própria (sem plugin): lê o hash ao abrir e regrava a cada movimento.
