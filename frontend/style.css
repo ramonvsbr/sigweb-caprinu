@@ -1,15 +1,15 @@
-/* Poppins: a mesma família da landing do InOviSertão */
+/* Poppins (Google Fonts) */
 @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap');
 
 /* ─── TOKENS ───────────────────────────────────────────────
-   Identidade InOviSertão, medida na landing (screenshot de 06/10/2026):
-   azul da marca #2563eb (hero e rodapé), marinho #0f1b4d (botão principal),
+   Identidade visual do CaprinuSIG:
+   azul da marca #2563eb, marinho #0f1b4d (botão principal),
    fundo #f7fafe, borda #dadee5, ícone em ladrilho azul claro #eaf0fc,
    títulos quase pretos, Poppins, raios pequenos e sombras leves.
    ──────────────────────────────────────────────────────────── */
 :root {
-    /* Mesmos valores do globals.css */
-    --primary:            oklch(0.546 0.245 263); /* #2563eb: azul do hero e do rodapé da landing */
+    /* Cores base da interface */
+    --primary:            oklch(0.546 0.245 263); /* #2563eb: azul da marca */
     --primary-foreground: oklch(0.98 0.005 260);
     --secondary:          oklch(0.26 0.12 264);   /* azul-marinho */
     --footer-dark:        oklch(0.20 0.10 264);
@@ -23,7 +23,7 @@
     --accent:             oklch(0.94 0.02 255);
     --ring:               oklch(0.546 0.245 263);
 
-    /* Estados (iguais ao :root do globals.css) */
+    /* Estados */
     --success:     oklch(0.58 0.15 148);
     --warning:     oklch(0.80 0.14 82);
     --destructive: oklch(0.57 0.20 27);
@@ -31,7 +31,7 @@
     /* Apoio: azul claro para detalhes sobre o marinho (ícones, subtítulo) */
     --primary-soft: oklch(0.80 0.09 255);
 
-    /* Da landing: ladrilho azul claro atrás dos ícones e degradê do hero */
+    /* Ladrilho azul claro atrás dos ícones e degradê do topo do painel */
     --tile:          oklch(0.955 0.025 262);                       /* #eaf0fc */
     --hero-gradient: linear-gradient(110deg, var(--primary) 40%, oklch(0.62 0.18 262) 100%);
 
@@ -55,7 +55,7 @@
 
     --radius-sm: 0.25rem;
     --radius-md: 0.375rem;
-    --radius-lg: 0.5rem;     /* cards da landing */
+    --radius-lg: 0.5rem;     /* cards */
 
     /* Sombras leves com fio de azul */
     --shadow-sm: 0 1px 2px 0 oklch(0.26 0.12 264 / 0.06);
@@ -886,3 +886,175 @@ body:has(#painel-lateral.colapsado) .botao-toggle-painel { right: 12px; }
 .item-area:hover { background: var(--accent); }
 .item-area-nome { font-size: 13px; font-weight: 600; color: var(--foreground); }
 .item-area-num { font-size: 12px; color: var(--muted-foreground); font-variant-numeric: tabular-nums; }
+
+/* ─── MANUAL "COMO USAR" ─────────────────────────────────────
+   Botão flutuante + janela com o tutorial.
+   Sem animações nem transições, de propósito.
+   Usa os tokens do style.css (--primary, --card, --border...). */
+
+/* Botão flutuante: centralizado na parte visível do mapa (fora do painel) */
+.botao-como-usar {
+    position: fixed;
+    bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+    left: calc((100vw - var(--sidebar-w, 400px)) / 2);
+    transform: translateX(-50%);
+    z-index: 1100;
+    display: inline-flex; align-items: center; gap: 8px;
+    min-height: 44px;
+    padding: 0 18px 0 14px;
+    background: var(--primary);
+    color: var(--primary-foreground);
+    border: none;
+    border-radius: 999px;
+    font-family: var(--font-body, inherit);
+    font-size: 15px; font-weight: 600;
+    cursor: pointer;
+    box-shadow: var(--shadow-lg, 0 8px 24px rgb(0 0 0 / 0.25));
+}
+.botao-como-usar:hover { background: color-mix(in oklab, var(--primary) 88%, black); }
+.botao-como-usar .lucide { width: 20px; height: 20px; flex-shrink: 0; }
+
+/* Painel recolhido: o mapa ocupa a tela toda, então centraliza na tela */
+body:has(#painel-lateral.colapsado) .botao-como-usar { left: 50%; }
+
+/* Janela */
+.manual {
+    width: min(660px, calc(100vw - 24px));
+    max-height: min(88vh, 760px); max-height: min(88dvh, 760px);
+    padding: 0;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg, 0.5rem);
+    background: var(--card);
+    color: var(--foreground);
+    font-family: var(--font-body, inherit);
+    box-shadow: var(--shadow-lg, 0 8px 24px rgb(0 0 0 / 0.25));
+    overflow: hidden;
+}
+.manual[open] { display: flex; flex-direction: column; }
+.manual::backdrop { background: oklch(0.15 0.09 264 / 0.6); }
+
+.manual-topo {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    padding: 16px 18px 16px 22px;
+    background: var(--hero-gradient, var(--primary));
+    color: var(--primary-foreground);
+    flex-shrink: 0;
+}
+.manual-topo h2 { margin: 0; font-size: 1.15rem; font-weight: 600; line-height: 1.3; }
+
+.manual-fechar {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 44px; height: 44px; flex-shrink: 0;
+    background: transparent;
+    color: inherit;
+    border: 1px solid oklch(1 0 0 / 0.35);
+    border-radius: var(--radius-md, 0.375rem);
+    cursor: pointer;
+}
+.manual-fechar:hover { background: oklch(1 0 0 / 0.15); }
+.manual-fechar:focus-visible,
+.manual-ok:focus-visible,
+.botao-como-usar:focus-visible { outline: 3px solid var(--warning); outline-offset: 2px; }
+.manual-fechar .lucide { width: 18px; height: 18px; }
+
+.manual-corpo {
+    flex: 1; min-height: 0;
+    overflow-y: auto;
+    padding: 20px 22px 8px;
+    font-size: 15.5px; line-height: 1.6;
+}
+.manual-corpo h3 {
+    margin: 22px 0 10px;
+    font-size: 1rem; font-weight: 600;
+    color: var(--secondary);
+}
+.manual-intro { margin: 0; }
+
+/* Passos numerados */
+.manual-passos { list-style: none; margin: 0; padding: 0; counter-reset: passo; }
+.manual-passos li {
+    counter-increment: passo;
+    position: relative;
+    padding: 0 0 14px 44px;
+}
+.manual-passos li::before {
+    content: counter(passo);
+    position: absolute; left: 0; top: 0;
+    width: 30px; height: 30px;
+    display: flex; align-items: center; justify-content: center;
+    background: var(--tile);
+    color: var(--secondary);
+    border: 1px solid var(--border);
+    border-radius: 50%;
+    font-weight: 700; font-size: 14px;
+}
+.manual-passos strong { display: block; color: var(--foreground); }
+
+.manual-lista { margin: 0; padding-left: 20px; }
+.manual-lista li { margin-bottom: 6px; }
+
+/* Itens recolhíveis (técnicos e pesquisadores) */
+.manual-item {
+    margin-bottom: 8px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg, 0.5rem);
+    background: var(--background);
+}
+.manual-item summary {
+    display: flex; align-items: center; gap: 10px;
+    min-height: 48px; padding: 8px 14px;
+    font-weight: 600;
+    cursor: pointer;
+    list-style: none;
+}
+.manual-item summary::-webkit-details-marker { display: none; }
+.manual-item summary::after {
+    content: "+";
+    margin-left: auto;
+    font-size: 20px; font-weight: 500; color: var(--primary);
+}
+.manual-item[open] summary::after { content: "−"; }
+.manual-item summary:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; border-radius: var(--radius-lg, 0.5rem); }
+.manual-item summary .lucide { width: 18px; height: 18px; color: var(--primary); flex-shrink: 0; }
+.manual-item p { margin: 0; padding: 0 14px 12px; }
+.manual-item p + p { padding-top: 0; }
+
+.manual-aviso {
+    margin: 18px 0 12px;
+    padding: 12px 14px;
+    background: var(--tile);
+    border-left: 4px solid var(--primary);
+    border-radius: var(--radius-md, 0.375rem);
+    font-size: 14.5px;
+}
+
+.manual-rodape {
+    flex-shrink: 0;
+    padding: 12px 22px calc(14px + env(safe-area-inset-bottom, 0px));
+    border-top: 1px solid var(--border);
+    background: var(--card);
+    text-align: right;
+}
+.manual-ok {
+    min-height: 44px; padding: 0 22px;
+    background: var(--primary);
+    color: var(--primary-foreground);
+    border: none;
+    border-radius: var(--radius-md, 0.375rem);
+    font-family: inherit; font-size: 15px; font-weight: 600;
+    cursor: pointer;
+}
+.manual-ok:hover { background: color-mix(in oklab, var(--primary) 88%, black); }
+
+/* Celular: o painel cobre o mapa inteiro, então o botão fica centralizado na tela,
+   um pouco acima da base para não encostar nas coordenadas e na escala,
+   e some enquanto o painel estiver aberto (como o botão de abrir o painel) */
+@media (max-width: 768px) {
+    .botao-como-usar { left: 50%; bottom: calc(76px + env(safe-area-inset-bottom, 0px)); }
+    body:has(#painel-lateral:not(.colapsado)) .botao-como-usar { display: none; }
+    .manual { width: calc(100vw - 16px); max-height: 92vh; max-height: 92dvh; }
+    .manual-corpo { padding: 16px 16px 8px; }
+    .manual-topo { padding-left: 16px; }
+    .manual-rodape { padding-left: 16px; padding-right: 16px; }
+    .manual-ok { width: 100%; }
+}

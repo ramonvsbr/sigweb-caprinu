@@ -164,6 +164,119 @@
         </div>
     </div>
 
+    <!-- MANUAL "COMO USAR": botão flutuante + janela com o tutorial -->
+    <button type="button" class="botao-como-usar" id="btn-como-usar" aria-haspopup="dialog">
+        <i data-lucide="circle-help"></i><span>Como usar</span>
+    </button>
+
+    <dialog class="manual" id="manual-dialogo" aria-labelledby="manual-titulo">
+        <header class="manual-topo">
+            <h2 id="manual-titulo">Como usar o CaprinuSIG</h2>
+            <button type="button" class="manual-fechar" data-fechar-manual aria-label="Fechar o tutorial">
+                <i data-lucide="x"></i>
+            </button>
+        </header>
+
+        <div class="manual-corpo">
+            <p class="manual-intro">
+                O CaprinuSIG mostra no mapa as comunidades de criadores de ovinos e caprinos.
+                Cada ponto é uma comunidade. Siga os passos abaixo para começar.
+            </p>
+
+            <h3>O básico, para todos</h3>
+            <ol class="manual-passos">
+                <li>
+                    <strong>Escolha o que quer ver.</strong>
+                    No topo do painel azul, em <em>Métrica espacial</em>, escolha entre quantidade de
+                    ovinos, quantidade de caprinos ou total de produtores. Quanto maior o círculo,
+                    maior o número.
+                </li>
+                <li>
+                    <strong>Círculos ou Calor.</strong>
+                    Logo abaixo, <em>Círculos</em> mostra um círculo por comunidade. <em>Calor</em>
+                    mostra uma mancha de cores: do azul (menos) ao vermelho (mais).
+                </li>
+                <li>
+                    <strong>Toque em uma comunidade.</strong>
+                    O painel mostra os números dela. Se aparecer um círculo com um número dentro, são
+                    várias comunidades juntas: toque nele para aproximar.
+                </li>
+                <li>
+                    <strong>Procure pelo nome.</strong>
+                    Use a lupa do mapa e digite o nome da comunidade. O mapa vai até ela e abre o painel.
+                </li>
+                <li>
+                    <strong>Abra e feche o painel.</strong>
+                    O botão no alto do painel esconde ou mostra a lateral. O botão <em>Visão geral</em>
+                    volta aos totais de todas as comunidades.
+                </li>
+            </ol>
+
+            <h3>Mexendo no mapa</h3>
+            <ul class="manual-lista">
+                <li>Arraste para mover. Use os botões <strong>+</strong> e <strong>−</strong>, ou dois dedos no celular, para aproximar e afastar.</li>
+                <li>No canto superior direito, troque entre <strong>Ruas</strong> e <strong>Satélite</strong> e use a <strong>tela cheia</strong>.</li>
+                <li>O botão de alvo mostra onde você está.</li>
+                <li>No canto inferior direito, a <strong>legenda</strong> explica o tamanho dos círculos. Embaixo, à esquerda, ficam a escala e as coordenadas.</li>
+            </ul>
+
+            <h3>Para técnicos e pesquisadores</h3>
+
+            <details class="manual-item">
+                <summary><i data-lucide="sliders-horizontal"></i> Filtros e planilha (CSV)</summary>
+                <p>
+                    No bloco <em>Filtros</em>, escolha município (quando houver), sistema de criação e
+                    escrituração. Mapa, totais, busca e legenda passam a considerar só as comunidades
+                    filtradas. O botão <em>Baixar CSV</em> salva a tabela das comunidades que estão
+                    visíveis, pronta para abrir no Excel. <em>Limpar filtros</em> volta ao normal.
+                </p>
+            </details>
+
+            <details class="manual-item">
+                <summary><i data-lucide="pencil-ruler"></i> Desenhar, medir e somar uma área</summary>
+                <p>
+                    Na barra à esquerda do mapa, escolha linha, polígono, retângulo ou círculo. A linha
+                    mede a distância. As outras formas medem a área em hectares. Polígono, retângulo e
+                    círculo também contam as comunidades que ficaram dentro e somam produtores,
+                    caprinos e ovinos; o painel lista essas comunidades.
+                </p>
+                <p>
+                    As mesmas ferramentas editam, movem e apagam as formas. Enquanto uma ferramenta
+                    estiver ligada, tocar numa comunidade não abre o painel. O botão de download logo
+                    abaixo da barra salva os desenhos em GeoJSON.
+                </p>
+            </details>
+
+            <details class="manual-item">
+                <summary><i data-lucide="layers"></i> Importar camadas (GeoJSON)</summary>
+                <p>
+                    Em <em>Camadas importadas</em>, toque em <em>Importar GeoJSON</em> e escolha um
+                    ou mais arquivos .geojson ou .json em latitude e longitude (WGS 84), de até 20 MB.
+                    Cada camada tem caixa para ligar e desligar, zoom e botão de remover. Toque numa
+                    feição do mapa para ver os atributos dela.
+                </p>
+            </details>
+
+            <details class="manual-item">
+                <summary><i data-lucide="link"></i> Compartilhar uma vista do mapa</summary>
+                <p>
+                    O endereço da página guarda a posição e o zoom. Aproxime a área que quer mostrar,
+                    copie o endereço do navegador e envie o link.
+                </p>
+            </details>
+
+            <p class="manual-aviso">
+                <strong>Lembre-se:</strong> desenhos, camadas importadas e a escolha entre Círculos e
+                Calor não ficam salvos e somem ao recarregar a página. Os dados das comunidades são
+                atualizados pela equipe da Caprinu; o mapa não permite editá-los.
+            </p>
+        </div>
+
+        <footer class="manual-rodape">
+            <button type="button" class="manual-ok" data-fechar-manual>Entendi, fechar</button>
+        </footer>
+    </dialog>
+
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
     <script src="https://unpkg.com/leaflet-search@3.0.9/dist/leaflet-search.src.js"></script>

@@ -365,7 +365,7 @@ function calcularRaio(valor, tipo) {
 }
 
 // ─── RENDERIZAÇÃO ESPACIAL COM CLUSTER ────────────────────────────────────────
-// Hex equivalentes (oklch -> hex) da paleta .theme-inovisertao do globals.css.
+// Hex equivalentes (oklch -> hex) das cores do :root do style.css.
 // O Leaflet precisa de cor literal no SVG; no resto da interface usamos var(--*).
 const PALETA = {
     primary:     '#2d69de',   // azul da marca
@@ -1338,3 +1338,33 @@ renderizarIcones();
 criarLegenda();
 document.getElementById('conteudo-dinamico').innerHTML = htmlEsqueleto();
 carregarDadosDaAPI();
+
+// ─── MANUAL "COMO USAR" ───────────────────────────────────────────────────────
+// Manual "Como usar": abre e fecha a janela do tutorial.
+// Usa o <dialog> nativo: o Esc fecha, o foco fica preso na janela
+// e volta para o botão "Como usar" ao fechar.
+(function configurarManual() {
+    const botao  = document.getElementById('btn-como-usar');
+    const dialog = document.getElementById('manual-dialogo');
+    if (!botao || !dialog) return;
+
+    const corpo = dialog.querySelector('.manual-corpo');
+
+    botao.addEventListener('click', () => {
+        if (typeof dialog.showModal === 'function') dialog.showModal();
+        else dialog.setAttribute('open', '');
+        if (corpo) corpo.scrollTop = 0;   // sempre abre no começo do tutorial
+    });
+
+    dialog.querySelectorAll('[data-fechar-manual]').forEach((el) => {
+        el.addEventListener('click', () => dialog.close());
+    });
+
+    // Clique fora da janela (no fundo escuro) também fecha
+    dialog.addEventListener('click', (e) => {
+        if (e.target === dialog) dialog.close();
+    });
+
+    // Desenha os ícones Lucide do botão e da janela
+    if (window.lucide) lucide.createIcons();
+})();
